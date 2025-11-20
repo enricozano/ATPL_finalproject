@@ -10,22 +10,18 @@ import System.Random(mkStdGen, randoms)
 teleprog :: Program
 teleprog = let
         op1 = Unitary $ 
-            (C X) ⊗ I <>
-            H ⊗ I ⊗ I
+            I ⊗ I ⊗ I -- Replace by your own program
         
         op2 = Unitary $ 
-            C (I ⊗ Z) <>
-            I ⊗ (C X)
+            I ⊗ I ⊗ I -- Replace by your own program
     in
         [op1, Measure [0,1], op2]
 
 teleport :: RNG -> StateT -> (StateT, RNG)
 teleport rng psi = let
-        bell     = sqrt(1/2) .* (ket [0,0] + ket [1,1])
-        psi_bell = psi ⊗ bell
+	-- Write this yourself
     in
         evalProg rng teleprog psi_bell
-
 
 
 main :: IO()

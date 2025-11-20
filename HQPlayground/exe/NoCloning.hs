@@ -4,9 +4,6 @@ import QubitOperators
 import MatrixSemantics
 import PrettyMatrix
 
-state1q :: ComplexT -> ComplexT -> StateT
-state1q a b = a .* ket [0] + b .* ket [1]
-
 {-|
   Clones the full state of a 1-qubit state |ψ> into a 2-qubit state |ψψ>
   Not a physically realizable operation due to the No-cloning theorem!
@@ -15,12 +12,7 @@ quantum_cloned_state :: StateT -> StateT
 quantum_cloned_state ψ = ψ ⊗ ψ
 
 cx_cloned_state :: StateT -> StateT 
-cx_cloned_state ψ = 
-    let 
-        ψ0 = ψ ⊗ ket [0]
-        cx = evalOp $ C X
-    in
-        cx <> ψ0
+-- Write this function yourself! 
 
 
 main :: IO()
