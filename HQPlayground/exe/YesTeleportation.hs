@@ -7,6 +7,14 @@ import PrettyOp
 import System.Random(mkStdGen, randoms)
 -- import Data.List(intercalate)
 
+{-| Implement the quantum teleportation protocol from N&C Section 1.3.7 (Fig. 1.11).
+
+Use the operations in QubitsOperator.hs.
+
+- How do you implement X^M2, Z^M1 without dynamic control? (Hint: All Pauli gates involutions, i.e. X^2 = Y^2 = Z^2 = I).
+
+- Our simple language doesn't have qubit numbering. How can you implement the flow from measurement M1 to qubit 2? (Hint: op can be multi-qubit in our controlled operation 'C op')
+-}
 teleprog :: Program
 teleprog = let
         op1 = Unitary $ 
@@ -17,9 +25,16 @@ teleprog = let
     in
         [op1, Measure [0,1], op2]
 
+{-| 'teleport rng psi' runs the teleprog program on the input 1Q-state psi. rng is a
+list of numbers [0..1] for random measurements. See below for how to make an infinite list of random numbers, or supply a fixed list for debugging. 
+
+returns: (final_state, rng') where rng' 
+is the updated random number generator/list.
+-}
 teleport :: RNG -> StateT -> (StateT, RNG)
 teleport rng psi = let
-	-- Write this yourself
+        bell.   =  ket[0,0] -- replace by actual definition, N&C Section 1.3.6
+        psi_bell = psi ⊗ bell
     in
         evalProg rng teleprog psi_bell
 
