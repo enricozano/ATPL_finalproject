@@ -11,7 +11,7 @@ import System.Random(mkStdGen, randoms)
 
 Use the operations in QubitsOperator.hs.
 
-- How do you implement X^M2, Z^M1 without dynamic control? (Hint: All Pauli gates involutions, i.e. X^2 = Y^2 = Z^2 = I).
+- How do you implement X^M2, Z^M1 without dynamic control? (Hint: A^0 = I for any operator A).
 
 - Our simple language doesn't have qubit numbering. How can you implement the flow from measurement M1 to qubit 2? (Hint: op can be multi-qubit in our controlled operation 'C op')
 -}

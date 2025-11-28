@@ -1,9 +1,11 @@
-module PrettyMatrix where
+module HQP.PrettyPrint.PrettyMatrix where
 
-import QubitOperators(RealT,ComplexT)
+import HQP.QOp.Syntax(RealT,ComplexT)
+import HQP.QOp.MatrixSemantics(CMat,RMat, sparseMat)
+import HQP.QOp.HelperFunctions(toBits', ilog2)
 import Numeric.LinearAlgebra
 import Data.List (transpose, intercalate)
-import MatrixSemantics(CMat,RMat,sparseMat,ilog2)
+
 
 
 -- ----- tolerances / helpers -----
@@ -40,17 +42,6 @@ showR x =
         then show r
         else show x
 
-toBits :: (Integral a) => a -> [a]
-toBits 0 = []
-toBits k = (toBits (k `div` 2)) ++ [(k `mod` 2)]
-
-toBits' :: Int -> Int -> [Int]
-toBits' n k = let 
-    bits = toBits k
-    m    = length bits
-  in
-    (replicate (n-m) 0) ++ bits
-
 showState :: CMat -> String
 showState mat = 
     let
@@ -63,7 +54,7 @@ showState mat =
                 ((map (\((i,_),v) -> (showC v) ++"*(ket " ++(show $ toBits' logm i)++")" )) nonzeros)
             (1,_) -> intercalate "+" 
                 ((map (\((_,j),v) -> (showC v) ++"*(bra " ++(show $ toBits' logn j)++")" )) nonzeros)
-            _     -> error "use showOp for operators"
+            _     -> error "use showQOp for operators"
 
 
 

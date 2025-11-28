@@ -21,11 +21,25 @@ common common-options
         FlexibleInstances,
         TypeFamilies,
         TypeSynonymInstances,
-        BinaryLiterals
+        BinaryLiterals,
+        PatternSynonyms
 
 library core
     import:   warnings, common-options
-    exposed-modules: QubitOperators, MatrixSemantics, PrettyOp, PrettyMatrix
+    exposed-modules: 
+      HQP,
+      HQP.QOp,
+      HQP.QOp.Syntax,
+      HQP.QOp.Simplify,
+      HQP.QOp.HelperFunctions,
+      HQP.QOp.MatrixSemantics,
+      HQP.QOp.TensorSemantics,
+      HQP.QOp.StabilizerSemantics,
+      HQP.PrettyPrint,
+      HQP.PrettyPrint.PrettyOp,
+      HQP.PrettyPrint.PrettyMatrix,
+      Programs.QFT 
+
     build-depends:  
         base,
         hmatrix,
@@ -41,20 +55,18 @@ common exe-common
       hqp:core
   ghc-options: -Wall
 
-executable Test
-  import: exe-common
-  build-depends:
-    random
-  main-is: YesTeleportation.hs 
-
 executable NoCloning
   import: exe-common
   main-is: NoCloning.hs
+
+
+executable ProgramInversion
+  import: exe-common
+  main-is: ProgramInversion.hs
 
 executable YesTeleportation
   import: exe-common
   build-depends:
     random
-  main-is: YesTeleportation.hs 
-
-
+  main-is: YesTeleportation.hs
+  
