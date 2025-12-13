@@ -1,4 +1,7 @@
 module HQP.QOp.Operator where
+
+--FILE OBSOLETO NON SERVE A NULLA, GUARDARE SYNTAX--
+
 import Data.Complex
 import Data.Tuple (swap)
 

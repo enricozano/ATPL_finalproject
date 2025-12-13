@@ -3,6 +3,9 @@ import HQP.QOp.Syntax
 import Data.List (intercalate)
 
 showOp :: QOp -> String
+-- Esempio concettuale di pretty print pulito
+showOp (Tensor a One) = showOp a
+showOp (Tensor One b) = showOp b
 showOp op = case op of
     C a             -> "C ("++ showOp a ++ ")"
     a `Tensor`    b -> "(" ++ showOp a ++ " ⊗ " ++ showOp b ++ ")"
