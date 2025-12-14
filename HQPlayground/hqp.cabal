@@ -35,6 +35,7 @@ library core
       HQP.QOp.MatrixSemantics,
       HQP.QOp.TensorSemantics,
       HQP.QOp.StabilizerSemantics,
+      HQP.QOp.CliffordExtraction,
       HQP.PrettyPrint,
       HQP.PrettyPrint.PrettyOp,
       HQP.PrettyPrint.PrettyMatrix,
@@ -69,4 +70,8 @@ executable YesTeleportation
   build-depends:
     random
   main-is: YesTeleportation.hs
-  
+
+-- NUOVO ESEGUIBILE PER IL TEST
+executable TestClifford
+  import: exe-common
+  main-is: TestClifford.hs
