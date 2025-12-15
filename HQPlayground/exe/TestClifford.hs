@@ -8,14 +8,19 @@ import Text.Printf (printf)
 -- 1. PRETTY PRINTER & UTILITIES
 -- =================================================================
 
--- | Formatta una Pauli String (es. "X I Z Y")
+-- | Formats a Pauli String (e.g., "X I Z Y")
+--   Adds a space between tensor components for better readability.
 ppPauli :: QOp -> String
 ppPauli op = case op of
-    I -> "I"; X -> "X"; Y -> "Y"; Z -> "Z"
-    Tensor a b -> ppPauli a ++ ppPauli b
-    One -> ""; _ -> "?"
+    I -> "I"
+    X -> "X"
+    Y -> "Y"
+    Z -> "Z"
+    Tensor a b -> ppPauli a ++ " " ++ ppPauli b
+    One -> ""
+    _ -> "?"
 
--- | Formatta un Clifford (es. "H ⊗ CNOT")
+-- | Formats a Clifford operator (e.g., "H ⊗ CNOT")
 ppClifford :: QOp -> String
 ppClifford op = case op of
     I -> "I"; X -> "X"; Y -> "Y"; Z -> "Z"; H -> "H"; SX -> "SX"
@@ -27,23 +32,24 @@ ppClifford op = case op of
     One -> "1"
     _ -> show op
 
--- | Appiattisce l'albero Compose in una lista
+-- | Flattens the Compose tree into a list
 flattenOps :: QOp -> [QOp]
 flattenOps (Compose outer inner) = flattenOps outer ++ flattenOps inner
 flattenOps op 
     | isIdentity op = [] 
     | otherwise = [op]
 
--- | Verifica se un operatore è pura identità
+-- | Checks if an operator is pure identity
 isIdentity :: QOp -> Bool
 isIdentity I = True; isIdentity One = True
 isIdentity (Tensor a b) = isIdentity a && isIdentity b
 isIdentity _ = False
 
--- | Stampa una riga formattata dell'operatore
+-- | Prints a formatted line for the operator item
 printOpItem :: (Int, QOp) -> IO ()
 printOpItem (i, o) = case o of
-    R pauli theta -> printf "   %2d. R( %-6s )  θ = %6.3f\n" i (ppPauli pauli) theta
+    -- Adjusted padding (%-10s) to handle longer Pauli strings like "Z I I I"
+    R pauli theta -> printf "   %2d. R( %-10s )  θ = %6.3f\n" i (ppPauli pauli) theta
     _ -> printf "   %2d. %s\n" i (ppClifford o)
 
 -- =================================================================
@@ -56,28 +62,28 @@ visualizeOutput title inputOp = do
     putStrLn $ " TEST: " ++ title
     putStrLn $ replicate 75 '='
     
-    putStrLn "\n  [INPUT] CIRCUITO ORIGINALE (Sequenza Temporale):"
+    putStrLn "\n  [INPUT] ORIGINAL CIRCUIT (Time Sequence):"
     let initialList = reverse (flattenOps inputOp) 
     
     if null initialList 
-        then putStrLn "      (Vuoto)"
+        then putStrLn "      (Empty)"
         else mapM_ printOpItem (zip ([1..] :: [Int]) initialList)
 
-    -- ESECUZIONE ALGORITMO
+    -- ALGORITHM EXECUTION
     let processedOp = pushCliffords inputOp
     
-    putStrLn "\n  [OUTPUT] CIRCUITO PROCESSATO (Rotazioni -> Cliffords):"
+    putStrLn "\n  [OUTPUT] PROCESSED CIRCUIT (Rotations -> Cliffords):"
     let finalList = reverse (flattenOps processedOp)
     
     if null finalList 
-        then putStrLn "      (Identità)"
+        then putStrLn "      (Identity)"
         else mapM_ printOpItem (zip ([1..] :: [Int]) finalList)
 
 -- =================================================================
--- 3. HELPER PER CIRCUITI COMPLESSI
+-- 3. HELPERS FOR COMPLEX CIRCUITS
 -- =================================================================
 
--- Definiamo i CNOT tensoriali manualmente per chiarezza
+-- Manually defining tensor CNOTs for clarity
 cnot01, cnot12, cnot23 :: QOp
 cnot01 = Tensor (C X) (Tensor I I)
 cnot12 = Tensor I (Tensor (C X) I)
@@ -89,7 +95,7 @@ cnot23 = Tensor I (Tensor I (C X))
 
 main :: IO ()
 main = do
-    putStrLn "Avvio Suite di Test (Logica: Push Cliffords to Future)..."
+    putStrLn "Starting Test Suite (Logic: Push Cliffords to Future)..."
 
     -- ---------------------------------------------------------
     -- TEST 1: HADAMARD PUSH
@@ -120,35 +126,35 @@ main = do
     -- ---------------------------------------------------------
     
     -- LAYER 1 (Start Time): Entanglement H + CNOT
-    -- Tensore esplicito: H (x) H (x) H (x) H
+    -- Explicit Tensor: H (x) H (x) H (x) H
     let layer_H = Tensor H (Tensor H (Tensor H H))
     let cliff_A = Compose (Compose cnot01 cnot23) layer_H
     
-    -- LAYER 2: Rotazione ZZ (Z Z I I)
-    -- Tensore esplicito: Z (x) Z (x) I (x) I
+    -- LAYER 2: ZZ Rotation (Z Z I I)
+    -- Explicit Tensor: Z (x) Z (x) I (x) I
     let rot_1_pauli = Tensor Z (Tensor Z (Tensor I I))
     let rot_1   = R rot_1_pauli 0.2
     
-    -- LAYER 3: SX e CNOT centrale (I SX I I)
-    -- Tensore esplicito: I (x) SX (x) I (x) I
+    -- LAYER 3: SX and central CNOT (I SX I I)
+    -- Explicit Tensor: I (x) SX (x) I (x) I
     let layer_SX = Tensor I (Tensor SX (Tensor I I))
     let cliff_B = Compose cnot12 layer_SX
     
-    -- LAYER 4: Rotazione complessa (I X Z Y)
-    -- Tensore esplicito: I (x) X (x) Z (x) Y
+    -- LAYER 4: Complex Rotation (I X Z Y)
+    -- Explicit Tensor: I (x) X (x) Z (x) Y
     let rot_2_pauli = Tensor I (Tensor X (Tensor Z Y))
     let rot_2   = R rot_2_pauli 0.5
     
-    -- LAYER 5: Cambio base (H I I X)
-    -- Tensore esplicito: H (x) I (x) I (x) X
+    -- LAYER 5: Basis Change (H I I X)
+    -- Explicit Tensor: H (x) I (x) I (x) X
     let cliff_C = Tensor H (Tensor I (Tensor I X))
     
-    -- LAYER 6 (End Time): Rotazione Z finale (Z I I I)
-    -- Tensore esplicito: Z (x) I (x) I (x) I
+    -- LAYER 6 (End Time): Final Z Rotation (Z I I I)
+    -- Explicit Tensor: Z (x) I (x) I (x) I
     let rot_3_pauli = Tensor Z (Tensor I (Tensor I I))
     let rot_3   = R rot_3_pauli 0.8
     
-    -- Assemblaggio (Ordine Compose è Inverso temporale: Ultimo . ... . Primo)
+    -- Assembly (Compose order is Reverse Time: Last . ... . First)
     let monster = Compose rot_3 (Compose cliff_C (Compose rot_2 (Compose cliff_B (Compose rot_1 cliff_A))))
 
     visualizeOutput "THE MONSTER (3 Rot layers, 4 Qubits)" monster

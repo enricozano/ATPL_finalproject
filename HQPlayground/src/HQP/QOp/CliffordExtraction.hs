@@ -4,7 +4,7 @@ import HQP.QOp.Syntax
 import Data.Bits (xor)
 
 -- ==========================================
--- 1. STRUTTURE E PARSING (Invariato)
+-- 1. STRUCTURES AND PARSING
 -- ==========================================
 
 data Symplectic = Symp {
@@ -39,7 +39,7 @@ pauliToSymp op = case op of
             sb = pauliToSymp b
         in Symp (xs sa ++ xs sb) (zs sa ++ zs sb) (sign sa `bxor` sign sb)
     One -> Symp [] [] False 
-    _ -> error $ "pauliToSymp: L'operatore " ++ show op ++ " non è una Pauli String valida."
+    _ -> error $ "pauliToSymp: Operator " ++ show op ++ " is not a valid Pauli String."
 
 sympToPauli :: Symplectic -> QOp
 sympToPauli (Symp [] [] _) = One
@@ -51,10 +51,10 @@ sympToPauli (Symp (x:xt) (z:zt) _) =
             (True, True)   -> Y
         rest = sympToPauli (Symp xt zt False)
     in if null xt then op else Tensor op rest
-sympToPauli _ = error "sympToPauli: lunghezza vettori incoerente"
+sympToPauli _ = error "sympToPauli: inconsistent vector lengths"
 
 -- ==========================================
--- 2. ENGINE SIMPLETTICO (Invariato)
+-- 2. SYMPLECTIC ENGINE
 -- ==========================================
 
 applyCNOTLogic :: Symplectic -> Symplectic
@@ -62,7 +62,7 @@ applyCNOTLogic (Symp [xc, xt] [zc, zt] s) =
     let xt_new = xt `bxor` xc 
         zc_new = zc `bxor` zt 
     in Symp [xc, xt_new] [zc_new, zt] s
-applyCNOTLogic _ = error "applyCNOTLogic: Richiede 2 qubit"
+applyCNOTLogic _ = error "applyCNOTLogic: Requires exactly 2 qubits"
 
 applyCliffordRecursive :: QOp -> Symplectic -> Symplectic
 applyCliffordRecursive cliff symp = case cliff of
@@ -76,7 +76,7 @@ applyCliffordRecursive cliff symp = case cliff of
     Adjoint op -> case op of
         Compose a b -> applyCliffordRecursive (Compose (Adjoint b) (Adjoint a)) symp
         Tensor a b  -> applyCliffordRecursive (Tensor (Adjoint a) (Adjoint b)) symp
-        SX -> applyCliffordRecursive SX symp 
+        SX -> applyCliffordRecursive SX symp -- SX is usually self-inverse in commutation logic context or handled specifically, checking definition.
         _ -> applyCliffordRecursive op symp 
     C X -> applyCNOTLogic symp
     H -> let (x, z) = (head (xs symp), head (zs symp)) in Symp [z] [x] (if x && z then not (sign symp) else sign symp)
@@ -97,7 +97,7 @@ applyCliffordToRotation cliff op = case op of
     _ -> op
 
 -- ==========================================
--- 3. ALGORITMO DI ESTRAZIONE (Modificato)
+-- 3. EXTRACTION ALGORITHM
 -- ==========================================
 
 nId :: Int -> QOp
@@ -111,8 +111,9 @@ isClifford op = case op of
     Adjoint a -> isClifford a
     _ -> True 
 
--- | Estrae (Cliffords, Rotations) spingendo i Clifford a SINISTRA (Futuro)
---   Logica: R . C -> C . R' (dove R' = C_dag . R . C)
+-- | Separates (Cliffords, Rotations) by pushing Cliffords to the LEFT (Future).
+--   Logic: R . C -> C . R' (where R' = C_dag . R . C)
+--   Returns (TotalClifford, TotalRotation) such that Input = TotalClifford . TotalRotation
 splitCliffords :: QOp -> (QOp, QOp)
 splitCliffords op 
     | isClifford op = (op, nId (sizeOf op)) -- (Cliff, Id)
@@ -120,20 +121,20 @@ splitCliffords op
         R pauli theta -> (nId (sizeOf pauli), R pauli theta) -- (Id, Rot)
         
         Compose a b -> 
-            -- a = Futuro (Left), b = Passato (Right)
+            -- a = Future (Left), b = Past (Right)
             -- a = (Ca . Ra), b = (Cb . Rb)
             let (cliffA, rotA) = splitCliffords a
                 (cliffB, rotB) = splitCliffords b
                 
-                -- Sequenza corrente: Ca . Ra . Cb . Rb
-                -- Vogliamo scambiare Ra e Cb.
-                -- Ra è a sinistra (Futuro), Cb è a destra (Passato).
-                -- Vogliamo Cb a sinistra e Ra a destra.
-                -- Ra . Cb = Cb . (Cb_dagger . Ra . Cb)
+                -- Current sequence: Ca . Ra . Cb . Rb
+                -- We want to swap Ra and Cb.
+                -- Ra is on the Left (Future), Cb is on the Right (Past).
+                -- We want Cb on the Left and Ra on the Right.
+                -- Relation: Ra . Cb = Cb . (Cb_dagger . Ra . Cb)
                 
                 rotA_trans = applyCliffordToRotation (Adjoint cliffB) rotA
                 
-            -- Nuova Sequenza: (Ca . Cb) . (rotA_trans . Rb)
+            -- New Sequence: (Ca . Cb) . (rotA_trans . Rb)
             in (Compose cliffA cliffB, Compose rotA_trans rotB)
 
         Tensor a b -> 
@@ -141,9 +142,9 @@ splitCliffords op
                 (cb, rb) = splitCliffords b
             in (Tensor ca cb, Tensor ra rb)
             
-        _ -> (nId (sizeOf op), op) -- Fallback, assume Rotazione generica
+        _ -> (nId (sizeOf op), op) -- Fallback, assumes generic Rotation
 
--- | API PUBBLICA: Restituisce Compose Cliffords Rotations
+-- | PUBLIC API: Returns Compose Cliffords Rotations
 pushCliffords :: QOp -> QOp
 pushCliffords op = 
     let (cliffs, rots) = splitCliffords op
