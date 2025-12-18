@@ -2,34 +2,42 @@ module Main where
 
 import HQP.QOp.Syntax
 import HQP.Opt.GateDecomposition
+import HQP.PrettyPrint
+import HQP.PrettyPrint (visualizeOutput)
 
 main :: IO ()
 main = do
-    putStrLn "\n--- TEST 1: The Original 'Bug' (Identity) ---"
-    putStrLn "Input: R (I ⊗ I) 0.5"
-    putStrLn "Expected: I ⊗ I (No CNOTs, No Rotation)"
+    {-putStrLn "\n--- TEST 1: The Original 'Bug' (Identity) ---"
+    putStrLn "Input:"
     let t1 = R (Tensor I I) 0.5
-    putStr "Result: "
-    pp $ expandAllPauliGadgets t1
+    visualizeOutput t1
+    putStr "Result:"
+    visualizeOutput $ expandAllPauliGadgets t1
 
     putStrLn "\n--- TEST 2: Gap / Long Distance (Z ⊗ I ⊗ Z) ---"
-    putStrLn "Input: R (Z ⊗ I ⊗ Z) 1.0"
-    putStrLn "Expected: CNOT between 0 and 2 (skipping 1), Rotation on 2"
-    -- Note: Tensor is right-associative here: Z `Tensor` (I `Tensor` Z)
+    putStrLn "Input:"
     let t2 = R (Tensor Z (Tensor I Z)) 1.0
+    visualizeOutput t2
     putStr "Result: "
-    pp $ expandAllPauliGadgets t2
+    visualizeOutput $ expandAllPauliGadgets t2
 
     putStrLn "\n--- TEST 3: Single Active Qubit in the middle (I ⊗ X ⊗ I) ---"
-    putStrLn "Input: R (I ⊗ X ⊗ I) 0.5"
-    putStrLn "Expected: No CNOTs. Only basis change (H) and rotation on the central qubit."
+    putStrLn "Input:"
     let t3 = R (Tensor I (Tensor X I)) 0.5
-    putStr "Result: "
-    pp $ expandAllPauliGadgets t3
+    visualizeOutput t3
+    putStr "Result:"
+    visualizeOutput $ expandAllPauliGadgets t3
 
     putStrLn "\n--- TEST 4: Mixed Basis Change (X ⊗ Y) ---"
-    putStrLn "Input: R (X ⊗ Y) 0.5"
-    putStrLn "Expected: H on Q0, (S_dag H) on Q1, then CNOT -> Rz -> CNOT, then inverse."
+    putStrLn "Input"
     let t4 = R (Tensor X Y) 0.5
-    putStr "Result: "
-    pp $ expandAllPauliGadgets t4
+    visualizeOutput t4
+    putStr "Result:"
+    visualizeOutput $ expandAllPauliGadgets t4-}
+
+    putStrLn "\n--- QuCLEAR img trivial decomposition ---"
+    let t5 = Compose (R (Tensor Y (Tensor Y (Tensor X X))) 0.5) (R (Tensor Z (Tensor Z (Tensor Z Z))) 0.5) 
+    putStrLn "Input:"
+    visualizeOutput t5
+    putStrLn "Result:"
+    visualizeOutput $ expandAllPauliGadgets t5

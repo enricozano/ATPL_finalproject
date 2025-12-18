@@ -5,5 +5,5 @@ module HQP (
 ) where
 
 import HQP.QOp
-import HQP.Opt hiding (nId, sizeOf) 
+import HQP.Opt
 import HQP.PrettyPrint

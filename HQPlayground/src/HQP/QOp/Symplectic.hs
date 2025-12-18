@@ -1,33 +1,17 @@
-module HQP.QOp.CliffordExtraction where
+module HQP.QOp.Symplectic where
 
 import HQP.QOp.Syntax
-import Data.Bits (xor)
+import HQP.QOp.HelperFunctions
 
--- ==========================================
--- 1. STRUCTURES AND PARSING
--- ==========================================
-
+-- | Symplectic representation of a Pauli String.
+-- sign = True represents -1, False represents +1.
 data Symplectic = Symp {
     xs   :: [Bool],
     zs   :: [Bool],
     sign :: Bool 
 } deriving (Show, Eq)
 
-bxor :: Bool -> Bool -> Bool
-bxor a b = a /= b
-
-sizeOf :: QOp -> Int
-sizeOf op = case op of
-    I -> 1; X -> 1; Y -> 1; Z -> 1; H -> 1; SX -> 1
-    C _ -> 2           
-    Tensor a b -> sizeOf a + sizeOf b
-    Compose a _ -> sizeOf a
-    Permute ks -> length ks
-    Adjoint a -> sizeOf a
-    R a _ -> sizeOf a
-    One -> 0
-    _ -> 1 
-
+-- | Convert a Pauli operator to its Symplectic vector.
 pauliToSymp :: QOp -> Symplectic
 pauliToSymp op = case op of
     I -> Symp [False] [False] False
@@ -41,6 +25,7 @@ pauliToSymp op = case op of
     One -> Symp [] [] False 
     _ -> error $ "pauliToSymp: Operator " ++ show op ++ " is not a valid Pauli String."
 
+-- | Convert a Symplectic vector back to a Pauli operator string.
 sympToPauli :: Symplectic -> QOp
 sympToPauli (Symp [] [] _) = One
 sympToPauli (Symp (x:xt) (z:zt) _) = 
@@ -53,10 +38,7 @@ sympToPauli (Symp (x:xt) (z:zt) _) =
     in if null xt then op else Tensor op rest
 sympToPauli _ = error "sympToPauli: inconsistent vector lengths"
 
--- ==========================================
--- 2. SYMPLECTIC ENGINE
--- ==========================================
-
+-- | Logic for CNOT conjugation on symplectic vectors.
 applyCNOTLogic :: Symplectic -> Symplectic
 applyCNOTLogic (Symp [xc, xt] [zc, zt] s) =
     let xt_new = xt `bxor` xc 
@@ -64,6 +46,8 @@ applyCNOTLogic (Symp [xc, xt] [zc, zt] s) =
     in Symp [xc, xt_new] [zc_new, zt] s
 applyCNOTLogic _ = error "applyCNOTLogic: Requires exactly 2 qubits"
 
+-- | Conjugates a Pauli string (symp) by a Clifford operator (cliff).
+--   Computes C * P * C_dagger
 applyCliffordRecursive :: QOp -> Symplectic -> Symplectic
 applyCliffordRecursive cliff symp = case cliff of
     Compose outer inner -> applyCliffordRecursive outer (applyCliffordRecursive inner symp)
@@ -76,7 +60,7 @@ applyCliffordRecursive cliff symp = case cliff of
     Adjoint op -> case op of
         Compose a b -> applyCliffordRecursive (Compose (Adjoint b) (Adjoint a)) symp
         Tensor a b  -> applyCliffordRecursive (Tensor (Adjoint a) (Adjoint b)) symp
-        SX -> applyCliffordRecursive SX symp -- SX is usually self-inverse in commutation logic context or handled specifically, checking definition.
+        SX -> applyCliffordRecursive SX symp 
         _ -> applyCliffordRecursive op symp 
     C X -> applyCNOTLogic symp
     H -> let (x, z) = (head (xs symp), head (zs symp)) in Symp [z] [x] (if x && z then not (sign symp) else sign symp)
@@ -87,6 +71,8 @@ applyCliffordRecursive cliff symp = case cliff of
     I -> symp; One -> symp
     _ -> symp 
 
+-- | High-level function to conjugate a rotation by a Clifford.
+--   C . R(P, theta) . C_dagger = R(C.P.C_dag, theta)
 applyCliffordToRotation :: QOp -> QOp -> QOp
 applyCliffordToRotation cliff op = case op of
     R pauli theta -> 
@@ -95,57 +81,3 @@ applyCliffordToRotation cliff op = case op of
     Compose a b -> Compose (applyCliffordToRotation cliff a) (applyCliffordToRotation cliff b)
     Tensor a b  -> Tensor  (applyCliffordToRotation cliff a) (applyCliffordToRotation cliff b)
     _ -> op
-
--- ==========================================
--- 3. EXTRACTION ALGORITHM
--- ==========================================
-
-nId :: Int -> QOp
-nId 0 = One; nId 1 = I; nId n = Tensor I (nId (n-1))
-
-isClifford :: QOp -> Bool
-isClifford op = case op of
-    R _ _ -> False
-    Compose a b -> isClifford a && isClifford b
-    Tensor a b -> isClifford a && isClifford b
-    Adjoint a -> isClifford a
-    _ -> True 
-
--- | Separates (Cliffords, Rotations) by pushing Cliffords to the LEFT (Future).
---   Logic: R . C -> C . R' (where R' = C_dag . R . C)
---   Returns (TotalClifford, TotalRotation) such that Input = TotalClifford . TotalRotation
-splitCliffords :: QOp -> (QOp, QOp)
-splitCliffords op 
-    | isClifford op = (op, nId (sizeOf op)) -- (Cliff, Id)
-    | otherwise = case op of
-        R pauli theta -> (nId (sizeOf pauli), R pauli theta) -- (Id, Rot)
-        
-        Compose a b -> 
-            -- a = Future (Left), b = Past (Right)
-            -- a = (Ca . Ra), b = (Cb . Rb)
-            let (cliffA, rotA) = splitCliffords a
-                (cliffB, rotB) = splitCliffords b
-                
-                -- Current sequence: Ca . Ra . Cb . Rb
-                -- We want to swap Ra and Cb.
-                -- Ra is on the Left (Future), Cb is on the Right (Past).
-                -- We want Cb on the Left and Ra on the Right.
-                -- Relation: Ra . Cb = Cb . (Cb_dagger . Ra . Cb)
-                
-                rotA_trans = applyCliffordToRotation (Adjoint cliffB) rotA
-                
-            -- New Sequence: (Ca . Cb) . (rotA_trans . Rb)
-            in (Compose cliffA cliffB, Compose rotA_trans rotB)
-
-        Tensor a b -> 
-            let (ca, ra) = splitCliffords a
-                (cb, rb) = splitCliffords b
-            in (Tensor ca cb, Tensor ra rb)
-            
-        _ -> (nId (sizeOf op), op) -- Fallback, assumes generic Rotation
-
--- | PUBLIC API: Returns Compose Cliffords Rotations
-pushCliffords :: QOp -> QOp
-pushCliffords op = 
-    let (cliffs, rots) = splitCliffords op
-    in Compose cliffs rots

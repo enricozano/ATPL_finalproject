@@ -29,11 +29,13 @@ library core
       HQP.QOp,
       HQP.QOp.Syntax,
       HQP.QOp.HelperFunctions,
-      HQP.QOp.CliffordExtraction,
+      HQP.QOp.Symplectic,
       HQP.Opt,
       HQP.Opt.GateDecomposition,
+      HQP.Opt.CliffordExtraction,
       HQP.PrettyPrint,
       HQP.PrettyPrint.PrettyOp,
+      HQP.PrettyPrint.Visualizer,
       Programs.QFT 
     build-depends:    
         base,

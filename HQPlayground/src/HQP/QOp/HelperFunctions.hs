@@ -66,3 +66,28 @@ toBits' n k = let
 
 ilog2 :: (FiniteBits a, Integral a) => a -> Int
 ilog2 = countTrailingZeros
+
+nId :: Int -> QOp
+nId 0 = One
+nId 1 = I
+nId n = Tensor I (nId (n - 1))
+
+sizeOf :: QOp -> Int
+sizeOf op = case op of
+    I            -> 1
+    X            -> 1
+    Y            -> 1
+    Z            -> 1
+    H            -> 1
+    SX           -> 1
+    C sub        -> 1 + sizeOf sub
+    Tensor a b   -> sizeOf a + sizeOf b
+    Compose a _  -> sizeOf a
+    Permute ks   -> length ks
+    Adjoint a    -> sizeOf a
+    R a _        -> sizeOf a
+    One          -> 0
+    _            -> 1 
+
+bxor :: Bool -> Bool -> Bool
+bxor a b = a /= b

@@ -1,9 +1,9 @@
 module HQP.QOp (
     module HQP.QOp.Syntax,
     module HQP.QOp.HelperFunctions,
-    module HQP.QOp.CliffordExtraction
+    module HQP.QOp.Symplectic 
 ) where
 
 import HQP.QOp.Syntax
 import HQP.QOp.HelperFunctions
-import HQP.QOp.CliffordExtraction
+import HQP.QOp.Symplectic
