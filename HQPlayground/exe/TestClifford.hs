@@ -28,7 +28,7 @@ main = do
     
     let monster = Compose rot_3 (Compose cliff_C (Compose rot_2 (Compose cliff_B (Compose rot_1 cliff_A))))
 
-    putStrLn "\n----MONSTER INPUT----\n"
+    putStrLn "\n---- INPUT----\n"
     visualizeOutput  monster
-    putStrLn "\n----MONSTER CLIFFORD MOVED----\n"
+    putStrLn "\n---- AFTER MOVING THE CLIFFORD GATES ----\n"
     visualizeOutput (pushCliffords monster)

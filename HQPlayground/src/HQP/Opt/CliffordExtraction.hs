@@ -4,7 +4,7 @@ import HQP.QOp.Syntax
 import HQP.QOp.HelperFunctions
 import HQP.QOp.Symplectic 
 
--- | Check if an operator is a Clifford.
+-- | Check if an operator is a Clifford. (not complete, but sufficient for our purposes)
 isClifford :: QOp -> Bool
 isClifford op = case op of
     R _ _ -> False
