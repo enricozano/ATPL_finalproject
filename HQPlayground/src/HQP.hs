@@ -1,7 +1,9 @@
-module HQP( 
-    module HQP.QOp,           -- public QOp API (syntax + helpers; semantics not re-exported)
+module HQP ( 
+    module HQP.QOp,
+    module HQP.Opt,
     module HQP.PrettyPrint
-  ) where
+) where
 
 import HQP.QOp
+import HQP.Opt hiding (nId, sizeOf) 
 import HQP.PrettyPrint

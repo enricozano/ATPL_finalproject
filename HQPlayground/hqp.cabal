@@ -3,12 +3,10 @@ name:            hqp
 version:         0.1.0.0
 synopsis:        HQP language playground in Haskell
 license:         BSD-3-Clause
-license-file:    LICENSE
 author:          James Avery
 maintainer:      avery@diku.dk
 category:        Math
 build-type:      Simple
-extra-doc-files: CHANGELOG.md
 
 common warnings
     ghc-options: -Wall -Wno-orphans
@@ -25,23 +23,19 @@ common common-options
         PatternSynonyms
 
 library core
-    import:   warnings, common-options
+    import:           warnings, common-options
     exposed-modules: 
       HQP,
       HQP.QOp,
       HQP.QOp.Syntax,
-      HQP.QOp.Simplify,
       HQP.QOp.HelperFunctions,
-      HQP.QOp.MatrixSemantics,
-      HQP.QOp.TensorSemantics,
-      HQP.QOp.StabilizerSemantics,
       HQP.QOp.CliffordExtraction,
+      HQP.Opt,
+      HQP.Opt.GateDecomposition,
       HQP.PrettyPrint,
       HQP.PrettyPrint.PrettyOp,
-      HQP.PrettyPrint.PrettyMatrix,
       Programs.QFT 
-
-    build-depends:  
+    build-depends:    
         base,
         hmatrix,
         random,
@@ -49,29 +43,17 @@ library core
     hs-source-dirs:   src
 
 common exe-common
-  hs-source-dirs: exe
-  build-depends:
-      base,
-      hmatrix,
-      hqp:core
-  ghc-options: -Wall
+    import:           warnings, common-options
+    hs-source-dirs:   exe
+    build-depends:
+        base,
+        hmatrix,
+        hqp:core 
 
-executable NoCloning
-  import: exe-common
-  main-is: NoCloning.hs
+executable TestDecomposition
+    import:           exe-common
+    main-is:          TestDecomposition.hs
 
-
-executable ProgramInversion
-  import: exe-common
-  main-is: ProgramInversion.hs
-
-executable YesTeleportation
-  import: exe-common
-  build-depends:
-    random
-  main-is: YesTeleportation.hs
-
--- NUOVO ESEGUIBILE PER IL TEST
 executable TestClifford
-  import: exe-common
-  main-is: TestClifford.hs
+    import:           exe-common
+    main-is:          TestClifford.hs
