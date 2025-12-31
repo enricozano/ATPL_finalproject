@@ -9,28 +9,7 @@ import Data.List (sort)
 pp :: QOp -> IO ()
 pp = putStrLn . showOp 
 
--- ==========================================
--- 1. HELPER GATES
--- ==========================================
 
-genericCNOT :: Int -> Int -> Int -> QOp
-genericCNOT src tgt n 
-    | src == tgt = error "Source and Target cannot be the same"
-    | src > tgt  = error "This simplified impl supports src < tgt only for now"
-    | otherwise  = 
-        let 
-            gapSize = tgt - src - 1 
-            remoteGate = C (Tensor (nId gapSize) X)
-            prePad  = nId src
-            postPad = nId (n - tgt - 1)
-        in 
-            Tensor prePad (Tensor remoteGate postPad)
-
-flattenOps :: QOp -> [QOp]
-flattenOps (Tensor a b) = flattenOps a ++ flattenOps b
-flattenOps op 
-    | sizeOf op == 1 = [op]
-    | otherwise      = error "Complex operators inside Tensor not supported in flattening yet"
 
 -- ==========================================
 -- 2. PAULI GADGET COMPONENTS

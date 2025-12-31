@@ -3,11 +3,10 @@ module Main where
 import HQP.QOp.Syntax
 import HQP.Opt.GateDecomposition
 import HQP.PrettyPrint
-import HQP.PrettyPrint (visualizeOutput)
 
 main :: IO ()
 main = do
-    {-putStrLn "\n--- TEST 1: The Original 'Bug' (Identity) ---"
+    putStrLn "\n--- TEST 1: The Original 'Bug' (Identity) ---"
     putStrLn "Input:"
     let t1 = R (Tensor I I) 0.5
     visualizeOutput t1
@@ -33,7 +32,7 @@ main = do
     let t4 = R (Tensor X Y) 0.5
     visualizeOutput t4
     putStr "Result:"
-    visualizeOutput $ expandAllPauliGadgets t4-}
+    visualizeOutput $ expandAllPauliGadgets t4
 
     putStrLn "\n--- QuCLEAR img trivial decomposition ---"
     let t5 = Compose (R (Tensor Y (Tensor Y (Tensor X X))) 0.5) (R (Tensor Z (Tensor Z (Tensor Z Z))) 0.5) 

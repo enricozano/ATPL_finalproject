@@ -66,8 +66,7 @@ flattenCompose op
 visualizeOutput :: QOp -> IO ()
 visualizeOutput inputOp = do
     putStrLn "CIRCUIT (Time Sequence):"
-    -- Note: Removed 'reverse' to keep the logical order of Compose (outer . inner)
-    let initialList = flattenCompose inputOp 
+    let initialList = reverse $ flattenCompose inputOp 
     if null initialList 
         then putStrLn "      (Empty)"
         else mapM_ printOpItem (zip ([1..] :: [Int]) initialList)
