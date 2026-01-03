@@ -51,45 +51,53 @@ targetRot activeIndices totalSize theta =
 -- 3. EXPANSION LOGIC
 -- ==========================================
 
-expandPauliRot :: QOp -> QOp
-expandPauliRot (R Z theta) = R Z theta 
-expandPauliRot (R X theta) = Compose H (Compose (R Z theta) H)
-expandPauliRot (R Y theta) = 
-    let sGate = R Z (pi/2); sDag = Adjoint sGate
-    in Compose sDag (Compose H (Compose (R Z theta) (Compose H sGate)))
-
-expandPauliRot (R pauliString theta) =
-    let 
-        n = sizeOf pauliString
-        opsList = flattenOps pauliString
-        activeIndices = [i | (i, op) <- zip [0..] opsList, op /= I]
-        preOps  = toZBasis pauliString
-        postOps = fromZBasis pauliString
-    in
-        if null activeIndices then nId n 
-        else 
-            let
-                ladder   = buildSmartLadder activeIndices n
-                unladder 
-                    | length activeIndices < 2 = One
-                    | otherwise = 
-                        let pairs = reverse (zip activeIndices (tail activeIndices))
-                        in foldl1 Compose [genericCNOT src tgt n | (src, tgt) <- pairs]
-                core = targetRot activeIndices n theta
-            in
-                Compose preOps 
-                  (Compose ladder 
-                    (Compose core 
-                      (Compose unladder postOps)))
-
-expandPauliRot op = op
+expandPauliRot :: (QOp, QOp, QOp) -> QOp
+expandPauliRot (post, rot, pre) = Compose post (Compose rot pre)
 
 expandAllPauliGadgets :: QOp -> QOp
 expandAllPauliGadgets op = case op of
-    R pauli theta -> expandPauliRot (R pauli theta)
+    R pauli theta -> expandPauliRot (decomposePauliRotTuple $ R pauli theta)
     Tensor a b    -> Tensor (expandAllPauliGadgets a) (expandAllPauliGadgets b)
     Compose a b   -> Compose (expandAllPauliGadgets a) (expandAllPauliGadgets b)
     DirectSum a b -> DirectSum (expandAllPauliGadgets a) (expandAllPauliGadgets b)
     C x           -> C (expandAllPauliGadgets x)
     Adjoint x     -> Adjoint (expandAllPauliGadgets x)
     _             -> op
+
+decomposePauliRotTuple :: QOp -> (QOp, QOp, QOp)
+decomposePauliRotTuple (R Z theta) = (I, R Z theta, I)
+decomposePauliRotTuple (R X theta) = (H, R Z theta, H)
+decomposePauliRotTuple (R Y theta) = 
+    let pre  = R X (pi/2)
+        post = Adjoint pre
+    in (post, R Z theta, pre)
+
+decomposePauliRotTuple (R pauliString theta) =
+    let 
+        n = sizeOf pauliString
+        opsList = flattenOps pauliString
+        activeIndices = [i | (i, op) <- zip [0..] opsList, op /= I]
+        
+        preOps  = toZBasis pauliString
+        postOps = fromZBasis pauliString
+    in
+        if null activeIndices then (nId n, One, One)
+        else 
+            let
+                ladder   = buildSmartLadder activeIndices n
+                
+                unladder 
+                    | length activeIndices < 2 = One
+                    | otherwise = 
+                        let pairs = reverse (zip activeIndices (tail activeIndices))
+                        in foldl1 Compose [genericCNOT src tgt n | (src, tgt) <- pairs]
+                
+                core = targetRot activeIndices n theta
+                
+                preCircuit = Compose unladder postOps
+                
+                postCircuit = Compose preOps ladder
+                
+            in (postCircuit, core, preCircuit)
+
+decomposePauliRotTuple op = (One, op, One)

@@ -7,6 +7,7 @@ import HQP.QOp.Symplectic
 -- | Check if an operator is a Clifford. (not complete, but sufficient for our purposes)
 isClifford :: QOp -> Bool
 isClifford op = case op of
+    R X theta -> abs (abs theta - (pi/2)) < 0.0001
     R _ _ -> False
     Compose a b -> isClifford a && isClifford b
     Tensor a b -> isClifford a && isClifford b

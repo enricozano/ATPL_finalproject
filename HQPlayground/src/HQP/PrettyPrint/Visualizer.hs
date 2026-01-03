@@ -27,6 +27,9 @@ ppClifford op = case op of
     H  -> "H"
     SX -> "SX"
     One -> "I" -- Represent identity as 'I' for visual consistency
+    R X theta 
+        | abs (theta - (pi/2)) < 0.0001 -> "R X(π/2)"
+        | abs (theta + (pi/2)) < 0.0001 -> "R X(-π/2)"
     
     -- Handle Controlled Gates (CNOT cleanup)
     C inner -> case inner of
@@ -43,11 +46,12 @@ ppClifford op = case op of
     -- Composition and Adjoints
     Compose a b  -> ppClifford a ++ " . " ++ ppClifford b
     Permute ks   -> "Perm " ++ show ks
-    Adjoint a    -> "(" ++ ppClifford a ++ ")†"
-    
     -- Rotation formatting (for the printOpItem fallback)
     R pauli theta -> printf "R(%s, %.3f)" (ppPauli pauli) theta
-    
+    Adjoint a    -> case a of
+        R pauli theta -> ppClifford (R pauli (-theta))
+        _             -> "Adj(" ++ ppClifford a ++ ")"
+
     _ -> show op
 
 -- | Transforms a Compose tree into a flat list (time sequence)
@@ -62,7 +66,6 @@ flattenCompose op
     isIdentity (Tensor a b) = isIdentity a && isIdentity b
     isIdentity _ = False
 
--- | Visualization Engine
 visualizeOutput :: QOp -> IO ()
 visualizeOutput inputOp = do
     putStrLn "CIRCUIT (Time Sequence):"
@@ -72,7 +75,14 @@ visualizeOutput inputOp = do
         else mapM_ printOpItem (zip ([1..] :: [Int]) initialList)
   where
     printOpItem (i, o) = case o of
-        -- Special handling for Rotation gates to keep columns aligned
-        R pauli theta -> printf "   %2d. R( %-10s )  θ = %6.3f\n" i (ppPauli pauli) theta
+        -- Special handling for Rotation gates
+        R pauli theta -> 
+            -- Se è una delle nostre rotazioni Clifford speciali (X +/- pi/2),
+            -- usiamo ppClifford per stamparla in modo "compatto"
+            if pauli == X && (abs (theta - (pi/2)) < 0.0001 || abs (theta + (pi/2)) < 0.0001)
+            then printf "   %2d. %s\n" i (ppClifford o)
+            -- Altrimenti usiamo il formato tabellare per le vere rotazioni
+            else printf "   %2d. R( %-10s )  θ = %6.3f\n" i (ppPauli pauli) theta
+            
         -- Cleaned up Clifford/Tensor output
-        _             -> printf "   %2d. %s\n" i (ppClifford o)
+        _ -> printf "   %2d. %s\n" i (ppClifford o)

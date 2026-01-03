@@ -96,7 +96,19 @@ bxor a b = a /= b
 genericCNOT :: Int -> Int -> Int -> QOp
 genericCNOT src tgt n 
     | src == tgt = error "Source and Target cannot be the same"
-    | src > tgt  = error "This simplified impl supports src < tgt only for now"
+    | src < 0 || src >= n = error "Source index out of bounds"
+    | tgt < 0 || tgt >= n = error "Target index out of bounds"
+    | src > tgt  = 
+        let 
+            flippedCNOT = genericCNOT tgt src n
+            padPre   = nId tgt
+            padMid   = nId (src - tgt - 1)
+            padPost  = nId (n - src - 1)
+            
+            hLayer = Tensor padPre (Tensor H (Tensor padMid (Tensor H padPost)))
+        in 
+            Compose hLayer (Compose flippedCNOT hLayer)
+
     | otherwise  = 
         let 
             gapSize = tgt - src - 1 

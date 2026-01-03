@@ -63,6 +63,22 @@ applyCliffordRecursive cliff symp = case cliff of
         SX -> applyCliffordRecursive SX symp 
         _ -> applyCliffordRecursive op symp 
     C X -> applyCNOTLogic symp
+    R X theta 
+        | abs (theta - (pi/2)) < 0.0001 -> 
+            let (x, z) = (head (xs symp), head (zs symp))
+                x_new = x `bxor` z
+                z_new = z
+                s_new = if x && z then not (sign symp) else sign symp
+            in Symp [x_new] [z_new] s_new
+
+        | abs (theta + (pi/2)) < 0.0001 -> 
+            let (x, z) = (head (xs symp), head (zs symp))
+                x_new = x `bxor` z
+                z_new = z
+                s_new = if (not x) && z then not (sign symp) else sign symp
+            in Symp [x_new] [z_new] s_new
+        
+        | otherwise -> symp -- Non è un Clifford o angolo diverso, identità (fallback)
     H -> let (x, z) = (head (xs symp), head (zs symp)) in Symp [z] [x] (if x && z then not (sign symp) else sign symp)
     SX -> let (x, z) = (head (xs symp), head (zs symp)) in Symp [x] [x `bxor` z] (sign symp)
     X -> let z = head (zs symp) in if z then symp { sign = not (sign symp) } else symp
