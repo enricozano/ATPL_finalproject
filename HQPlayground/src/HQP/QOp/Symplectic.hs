@@ -42,8 +42,9 @@ sympToPauli _ = error "sympToPauli: inconsistent vector lengths"
 applyCNOTLogic :: Symplectic -> Symplectic
 applyCNOTLogic (Symp [xc, xt] [zc, zt] s) =
     let xt_new = xt `bxor` xc 
-        zc_new = zc `bxor` zt 
-    in Symp [xc, xt_new] [zc_new, zt] s
+        zc_new = zc `bxor` zt
+        phase_flip = xc && zt && (not (xt `bxor` zc))
+    in Symp [xc, xt_new] [zc_new, zt] (s `bxor` phase_flip)
 applyCNOTLogic _ = error "applyCNOTLogic: Requires exactly 2 qubits"
 
 -- | Conjugates a Pauli string (symp) by a Clifford operator (cliff).
@@ -62,25 +63,28 @@ applyCliffordRecursive cliff symp = case cliff of
         Tensor a b  -> applyCliffordRecursive (Tensor (Adjoint a) (Adjoint b)) symp
         SX -> applyCliffordRecursive SX symp 
         _ -> applyCliffordRecursive op symp 
-    C X -> applyCNOTLogic symp
+    C inner -> case inner of
+        X            -> applyCNOTLogic symp
+        Tensor One X -> applyCNOTLogic symp 
+        Tensor X One -> applyCNOTLogic symp 
+        _            -> symp 
     R X theta 
         | abs (theta - (pi/2)) < 0.0001 -> 
             let (x, z) = (head (xs symp), head (zs symp))
                 x_new = x `bxor` z
                 z_new = z
-                s_new = if x && z then not (sign symp) else sign symp
+                s_new = if (not x) && z then not (sign symp) else sign symp
             in Symp [x_new] [z_new] s_new
 
         | abs (theta + (pi/2)) < 0.0001 -> 
             let (x, z) = (head (xs symp), head (zs symp))
                 x_new = x `bxor` z
                 z_new = z
-                s_new = if (not x) && z then not (sign symp) else sign symp
+                s_new = if x && z then not (sign symp) else sign symp
             in Symp [x_new] [z_new] s_new
         
-        | otherwise -> symp -- Non è un Clifford o angolo diverso, identità (fallback)
+        | otherwise -> symp
     H -> let (x, z) = (head (xs symp), head (zs symp)) in Symp [z] [x] (if x && z then not (sign symp) else sign symp)
-    SX -> let (x, z) = (head (xs symp), head (zs symp)) in Symp [x] [x `bxor` z] (sign symp)
     X -> let z = head (zs symp) in if z then symp { sign = not (sign symp) } else symp
     Z -> let x = head (xs symp) in if x then symp { sign = not (sign symp) } else symp
     Y -> let (x, z) = (head (xs symp), head (zs symp)) in if x /= z then symp { sign = not (sign symp) } else symp

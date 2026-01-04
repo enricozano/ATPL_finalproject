@@ -67,10 +67,7 @@ expandAllPauliGadgets op = case op of
 decomposePauliRotTuple :: QOp -> (QOp, QOp, QOp)
 decomposePauliRotTuple (R Z theta) = (I, R Z theta, I)
 decomposePauliRotTuple (R X theta) = (H, R Z theta, H)
-decomposePauliRotTuple (R Y theta) = 
-    let pre  = R X (pi/2)
-        post = Adjoint pre
-    in (post, R Z theta, pre)
+decomposePauliRotTuple (R Y theta) = (Adjoint (R X (pi/2)), R Z theta, R X (pi/2))
 
 decomposePauliRotTuple (R pauliString theta) =
     let 
@@ -94,9 +91,9 @@ decomposePauliRotTuple (R pauliString theta) =
                 
                 core = targetRot activeIndices n theta
                 
-                preCircuit = Compose unladder postOps
+                postCircuit = Compose postOps unladder
                 
-                postCircuit = Compose preOps ladder
+                preCircuit = Compose ladder preOps
                 
             in (postCircuit, core, preCircuit)
 
