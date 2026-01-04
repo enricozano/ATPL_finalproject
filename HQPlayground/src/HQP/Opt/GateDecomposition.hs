@@ -4,6 +4,7 @@ import HQP.PrettyPrint
 import HQP.QOp.Syntax
 import HQP.QOp.HelperFunctions 
 import Data.List (sort)
+import HQP.QOp.Symplectic 
 
 -- Utility for pretty printing
 pp :: QOp -> IO ()
@@ -98,3 +99,76 @@ decomposePauliRotTuple (R pauliString theta) =
             in (postCircuit, core, preCircuit)
 
 decomposePauliRotTuple op = (One, op, One)
+
+-- | Takes a list of Rotations (assumed to be in execution order), decomposes them,
+-- and pushes the 'post' Clifford part forward through the subsequent rotations.
+decomposeAndPush :: [QOp] -> QOp
+decomposeAndPush rotations = 
+    let 
+        -- Iterate through the rotations maintaining the accumulated Clifford
+        -- (accCliff, processedOps) starts with (One, [])
+        (finalCliff, reversedOps) = foldl processStep (One, []) rotations
+        
+        processStep :: (QOp, [QOp]) -> QOp -> (QOp, [QOp])
+        processStep (accCliff, accOps) rot = 
+            let 
+                -- 1. Apply the inverse of the moving Clifford to the current rotation.
+                -- Logic: We have (Rot * AccCliff). We want to move AccCliff to the left (future).
+                -- Identity: Rot * AccCliff = AccCliff * (AccCliff_dag * Rot * AccCliff)
+                -- So the new effective rotation is: AccCliff_dag * Rot * AccCliff
+                effRot = applyCliffordToRotation (Adjoint accCliff) rot
+
+                -- 2. Decompose the effective rotation into (Post * Core * Pre)
+                (post, core, pre) = decomposePauliRotTuple effRot
+
+                -- 3. Construct the operation that stays in place (Core * Pre)
+                -- Note: 'Compose a b' applies 'b' then 'a'.
+                stepOp = Compose core pre 
+
+                -- 4. Update the accumulated Clifford.
+                -- The 'post' part is generated physically 'after' the core.
+                -- So it joins the AccCliff. 
+                -- Sequence: AccCliff_old * Post
+                nextCliff = Compose accCliff post
+            in 
+                (nextCliff, stepOp : accOps)
+    in 
+        -- Reconstruct the full circuit.
+        -- foldl produced a reversed list of operations [OpN, ..., Op1].
+        -- The final structure is: FinalCliff * OpN * ... * Op1
+        foldl Compose finalCliff reversedOps
+
+
+
+liftLeft :: QOp -> Int -> QOp
+liftLeft _ 0 = One 
+liftLeft (R pauli theta) extraSize = R (Tensor pauli (nId extraSize)) theta
+liftLeft op extraSize = Tensor op (nId extraSize)
+
+
+liftRight :: Int -> QOp -> QOp
+liftRight 0 _ = One
+liftRight extraSize (R pauli theta) = R (Tensor (nId extraSize) pauli) theta
+liftRight extraSize op = Tensor (nId extraSize) op
+
+extractOpList :: QOp -> [QOp]
+extractOpList op = case op of
+    Compose outer inner -> extractOpList inner ++ extractOpList outer
+    
+    Tensor a b -> 
+        let 
+            sizeA = sizeOf a
+            sizeB = sizeOf b
+            opsA = extractOpList a
+            opsB = extractOpList b
+            liftedA = map (\o -> liftLeft o sizeB) opsA
+            liftedB = map (\o -> liftRight sizeA o) opsB
+        in 
+            liftedA ++ liftedB
+
+    One -> []
+    I   -> [] 
+    _ -> [op]
+
+optimizeCircuit :: QOp -> QOp
+optimizeCircuit circuit = decomposeAndPush (extractOpList circuit)

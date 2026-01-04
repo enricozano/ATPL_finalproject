@@ -58,11 +58,13 @@ applyCliffordRecursive cliff symp = case cliff of
             sA = applyCliffordRecursive a (Symp xa za False)
             sB = applyCliffordRecursive b (Symp xb zb False)
         in Symp (xs sA ++ xs sB) (zs sA ++ zs sB) ((sign symp) `bxor` (sign sA) `bxor` (sign sB))
+        
     Adjoint op -> case op of
         Compose a b -> applyCliffordRecursive (Compose (Adjoint b) (Adjoint a)) symp
         Tensor a b  -> applyCliffordRecursive (Tensor (Adjoint a) (Adjoint b)) symp
         SX -> applyCliffordRecursive SX symp 
         _ -> applyCliffordRecursive op symp 
+
     C inner -> case inner of
         X            -> applyCNOTLogic symp
         Tensor One X -> applyCNOTLogic symp 

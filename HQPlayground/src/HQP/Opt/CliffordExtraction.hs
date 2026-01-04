@@ -35,3 +35,4 @@ pushCliffords :: QOp -> QOp
 pushCliffords op = 
     let (cliffs, rots) = splitCliffords op
     in Compose cliffs rots
+
