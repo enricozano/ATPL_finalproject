@@ -116,7 +116,7 @@ decomposeAndPush rotations =
                 -- Logic: We have (Rot * AccCliff). We want to move AccCliff to the left (future).
                 -- Identity: Rot * AccCliff = AccCliff * (AccCliff_dag * Rot * AccCliff)
                 -- So the new effective rotation is: AccCliff_dag * Rot * AccCliff
-                effRot = applyCliffordToRotation (Adjoint accCliff) rot
+                effRot = applyCliffordToRotation accCliff rot
 
                 -- 2. Decompose the effective rotation into (Post * Core * Pre)
                 (post, core, pre) = decomposePauliRotTuple effRot
