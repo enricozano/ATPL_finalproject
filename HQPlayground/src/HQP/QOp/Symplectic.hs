@@ -38,14 +38,18 @@ sympToPauli (Symp (x:xt) (z:zt) _) =
     in if null xt then op else Tensor op rest
 sympToPauli _ = error "sympToPauli: inconsistent vector lengths"
 
--- | Logic for CNOT conjugation on symplectic vectors.
-applyCNOTLogic :: Symplectic -> Symplectic
-applyCNOTLogic (Symp [xc, xt] [zc, zt] s) =
-    let xt_new = xt `bxor` xc 
-        zc_new = zc `bxor` zt
-        phase_flip = xc && zt && (not (xt `bxor` zc))
-    in Symp [xc, xt_new] [zc_new, zt] (s `bxor` phase_flip)
-applyCNOTLogic _ = error "applyCNOTLogic: Requires exactly 2 qubits"
+findXIndex :: QOp -> Maybe Int
+findXIndex op = case op of
+    X -> Just 0
+    Tensor a b -> 
+        case findXIndex a of
+            Just k -> Just k
+            Nothing -> case findXIndex b of
+                Just k -> Just (sizeOf a + k)
+                Nothing -> Nothing
+    I -> Nothing
+    One -> Nothing
+    _ -> Nothing
 
 -- | Conjugates a Pauli string (symp) by a Clifford operator (cliff).
 --   Computes C * P * C_dagger
@@ -65,11 +69,38 @@ applyCliffordRecursive cliff symp = case cliff of
         SX -> applyCliffordRecursive SX symp 
         _ -> applyCliffordRecursive op symp 
 
-    C inner -> case inner of
-        X            -> applyCNOTLogic symp
-        Tensor One X -> applyCNOTLogic symp 
-        Tensor X One -> applyCNOTLogic symp 
-        _            -> symp 
+    C inner -> 
+        -- FIX: General handling for C(Operator) using recursive search for X target.
+        -- Qubit 0 is always Control. Target is at (1 + index of X in inner).
+        case findXIndex inner of
+            Just idx -> 
+                let 
+                    targetAbs = idx + 1 
+                    
+                    -- Extract bits
+                    xc = xs symp !! 0
+                    zc = zs symp !! 0
+                    xt = xs symp !! targetAbs
+                    zt = zs symp !! targetAbs
+                    
+                    -- CNOT Logic: 
+                    -- X_target flips if X_control is 1
+                    -- Z_control flips if Z_target is 1
+                    xt_new = xt `bxor` xc 
+                    zc_new = zc `bxor` zt
+                    phase_flip = xc && zt && (not (xt `bxor` zc))
+                    
+                    -- Helper to update list
+                    replaceAt i val list = take i list ++ [val] ++ drop (i+1) list
+                    
+                    -- Apply updates
+                    xs_final = replaceAt targetAbs xt_new (xs symp)
+                    zs_final = replaceAt 0 zc_new (zs symp)
+                    s_final  = (sign symp) `bxor` phase_flip
+                in
+                    Symp xs_final zs_final s_final
+            Nothing -> symp -- Treat as Identity if no X found (e.g. C(I))
+
     R X theta 
         | abs (theta - (pi/2)) < 0.0001 -> 
             let (x, z) = (head (xs symp), head (zs symp))
@@ -103,3 +134,6 @@ applyCliffordToRotation cliff op = case op of
     Compose a b -> Compose (applyCliffordToRotation cliff a) (applyCliffordToRotation cliff b)
     Tensor a b  -> Tensor  (applyCliffordToRotation cliff a) (applyCliffordToRotation cliff b)
     _ -> op
+
+
+-- note: would be smart to convert the full circuit into symplectic form and optimize there
