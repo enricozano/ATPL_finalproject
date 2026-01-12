@@ -32,12 +32,16 @@ fromZBasis I = I
 fromZBasis (Tensor a b) = Tensor (fromZBasis a) (fromZBasis b)
 fromZBasis op = op
 
-buildSmartLadder :: [Int] -> Int -> QOp
-buildSmartLadder activeIndices totalSize 
-    | length activeIndices < 2 = One
+buildLadderPair :: [Int] -> Int -> (QOp, QOp)
+buildLadderPair activeIndices totalSize 
+    | length activeIndices < 2 = (One, One)
     | otherwise = 
-        let pairs = zip activeIndices (tail activeIndices)
-        in foldl1 Compose [genericCNOT src tgt totalSize | (src, tgt) <- pairs]
+        let 
+            pairs = zip activeIndices (tail activeIndices)
+            ops   = [genericCNOT src tgt totalSize | (src, tgt) <- pairs]
+            unladder = foldl1 Compose ops
+            ladder   = foldl1 Compose (reverse ops)
+        in (ladder, unladder)   
 
 targetRot :: [Int] -> Int -> RealT -> QOp
 targetRot activeIndices totalSize theta =
@@ -69,35 +73,22 @@ decomposePauliRotTuple :: QOp -> (QOp, QOp, QOp)
 decomposePauliRotTuple (R Z theta) = (I, R Z theta, I)
 decomposePauliRotTuple (R X theta) = (H, R Z theta, H)
 decomposePauliRotTuple (R Y theta) = (Adjoint (R X (pi/2)), R Z theta, R X (pi/2))
-
 decomposePauliRotTuple (R pauliString theta) =
     let 
         n = sizeOf pauliString
         opsList = flattenOps pauliString
         activeIndices = [i | (i, op) <- zip [0..] opsList, op /= I]
-        
         preOps  = toZBasis pauliString
         postOps = fromZBasis pauliString
     in
         if null activeIndices then (nId n, One, One)
         else 
             let
-                ladder   = buildSmartLadder activeIndices n
-                
-                unladder 
-                    | length activeIndices < 2 = One
-                    | otherwise = 
-                        let pairs = reverse (zip activeIndices (tail activeIndices))
-                        in foldl1 Compose [genericCNOT src tgt n | (src, tgt) <- pairs]
-                
+                (ladder, unladder) = buildLadderPair activeIndices n
                 core = targetRot activeIndices n theta
-                
                 postCircuit = Compose postOps unladder
-                
                 preCircuit = Compose ladder preOps
-                
             in (postCircuit, core, preCircuit)
-
 decomposePauliRotTuple op = (One, op, One)
 
 -- | Takes a list of Rotations (assumed to be in execution order), decomposes them,
