@@ -66,7 +66,8 @@ applyCliffordRecursive cliff symp = case cliff of
     Adjoint op -> case op of
         Compose a b -> applyCliffordRecursive (Compose (Adjoint b) (Adjoint a)) symp
         Tensor a b  -> applyCliffordRecursive (Tensor (Adjoint a) (Adjoint b)) symp
-        SX -> applyCliffordRecursive SX symp 
+        R axis theta -> applyCliffordRecursive (R axis (-theta)) symp
+        Adjoint x -> applyCliffordRecursive x symp
         _ -> applyCliffordRecursive op symp 
 
     C inner -> 

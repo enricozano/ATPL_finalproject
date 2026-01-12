@@ -102,5 +102,3 @@ main = do
     -- ---------------------------------------------------------
     let y5 = Compose (R (Tensor Z I) 0.3) (R (Tensor Y Y) 0.8)
     runTest "Y5" "Multi Qubit: R(Y ⊗ Y) then R(Z ⊗ I)" y5
-
-    --TODO: CHECK CAREFULLY THE OUTPUTS OF THESE TESTS! (in particular the signs of the rotations in the Y tests)

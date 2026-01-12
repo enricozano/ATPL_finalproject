@@ -1,42 +1,43 @@
 module Main where
 
 import HQP.QOp.Syntax
+import HQP.QOp.HelperFunctions
+import HQP.Opt.CliffordExtraction
 import HQP.Opt.GateDecomposition
 import HQP.PrettyPrint
 
+-- Helper to run push tests
+runPushTest :: String -> QOp -> IO ()
+runPushTest name input = do
+    putStrLn $ "\n-----------------------------------------------------------"
+    putStrLn $ "PUSH TEST " ++ name
+    putStrLn "-----------------------------------------------------------"
+    putStrLn "INPUT CIRCUIT (Clifford then Rotation):"
+    visualizeOutput input
+    putStrLn "\nRESULT AFTER pushCliffords (Rotation then Clifford):"
+    visualizeOutput (pushCliffords input)
+    putStrLn ""
+
 main :: IO ()
 main = do
-    putStrLn "\n--- TEST 1: The Original 'Bug' (Identity) ---"
-    putStrLn "Input:"
-    let t1 = R (Tensor I I) 0.5
-    visualizeOutput t1
-    putStr "Result:"
-    visualizeOutput $ expandAllPauliGadgets t1
+    let n = 4
+    
+    -- 1. Basis Change Test: H gates followed by Z-Rotation
+    -- H . Z . H = X. Thus, R(ZZZZ) . (H⊗H⊗H⊗H) should become (H⊗H⊗H⊗H) . R(XXXX)
+    let h4 = Tensor H (Tensor H (Tensor H H))
+    let rotZZZZ = R (Tensor Z (Tensor Z (Tensor Z Z))) 0.5
+    runPushTest "1: Hadamard Basis Change (H -> X)" (Compose rotZZZZ h4)
 
-    putStrLn "\n--- TEST 2: Gap / Long Distance (Z ⊗ I ⊗ Z) ---"
-    putStrLn "Input:"
-    let t2 = R (Tensor Z (Tensor I Z)) 1.0
-    visualizeOutput t2
-    putStr "Result: "
-    visualizeOutput $ expandAllPauliGadgets t2
+    -- 2. CNOT Tree Test: CNOT Ladder followed by a single qubit rotation
+    -- Moving a Z-rotation on the control qubit through a CNOT doesn't change it,
+    -- but moving a Z-rotation on the target qubit creates a ZZ interaction.
+    let (cnotLadder, _) = buildNaiveLadderPair [0, 1, 2, 3] n
+    let rotTarget = R (Tensor I (Tensor I (Tensor I Z))) 0.8 -- Rotation on qubit 3
+    runPushTest "2: CNOT Ladder Push (Z on target -> ZZZZ)" (Compose rotTarget cnotLadder)
+    
+    -- 4. Complex Mixed Block: A CNOT tree and Hadamards
+    -- This tests the recursive nature of the extraction.
+    let complexCliff = Compose cnotLadder h4
+    runPushTest "4: Mixed CNOT + Hadamard Block" (Compose rotZZZZ complexCliff)
 
-    putStrLn "\n--- TEST 3: Single Active Qubit in the middle (I ⊗ X ⊗ I) ---"
-    putStrLn "Input:"
-    let t3 = R (Tensor I (Tensor X I)) 0.5
-    visualizeOutput t3
-    putStr "Result:"
-    visualizeOutput $ expandAllPauliGadgets t3
-
-    putStrLn "\n--- TEST 4: Mixed Basis Change (X ⊗ Y) ---"
-    putStrLn "Input"
-    let t4 = R (Tensor X Y) 0.5
-    visualizeOutput t4
-    putStr "Result:"
-    visualizeOutput $ expandAllPauliGadgets t4
-
-    putStrLn "\n--- QuCLEAR img trivial decomposition ---"
-    let t5 = Compose (R (Tensor Y (Tensor Y (Tensor X X))) 0.5) (R (Tensor Z (Tensor Z (Tensor Z Z))) 0.5) 
-    putStrLn "Input:"
-    visualizeOutput t5
-    putStrLn "Result:"
-    visualizeOutput $ expandAllPauliGadgets t5
+    putStrLn "Tests completed."

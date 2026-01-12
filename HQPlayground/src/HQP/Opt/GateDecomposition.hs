@@ -8,12 +8,12 @@ import HQP.QOp.Symplectic
 
 -- Utility for pretty printing
 pp :: QOp -> IO ()
-pp = putStrLn . showOp 
+pp = visualizeOutput
 
 
 
 -- ==========================================
--- 2. PAULI GADGET COMPONENTS
+-- 1. PAULI GADGET COMPONENTS (todo: move to helper?)
 -- ==========================================
 
 toZBasis :: QOp -> QOp
@@ -32,8 +32,15 @@ fromZBasis I = I
 fromZBasis (Tensor a b) = Tensor (fromZBasis a) (fromZBasis b)
 fromZBasis op = op
 
-buildLadderPair :: [Int] -> Int -> (QOp, QOp)
-buildLadderPair activeIndices totalSize 
+
+
+
+-- ==========================================
+-- 2. LADDER CONSTRUCTION
+-- ==========================================
+
+buildNaiveLadderPair :: [Int] -> Int -> (QOp, QOp)
+buildNaiveLadderPair activeIndices totalSize 
     | length activeIndices < 2 = (One, One)
     | otherwise = 
         let 
@@ -51,6 +58,19 @@ targetRot activeIndices totalSize theta =
         post = nId (totalSize - targetIdx - 1)
     in 
         Tensor pre (Tensor (R Z theta) post)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 -- ==========================================
 -- 3. EXPANSION LOGIC
@@ -84,7 +104,7 @@ decomposePauliRotTuple (R pauliString theta) =
         if null activeIndices then (nId n, One, One)
         else 
             let
-                (ladder, unladder) = buildLadderPair activeIndices n
+                (ladder, unladder) = buildNaiveLadderPair activeIndices n
                 core = targetRot activeIndices n theta
                 postCircuit = Compose postOps unladder
                 preCircuit = Compose ladder preOps
@@ -107,7 +127,8 @@ decomposeAndPush rotations =
                 -- Logic: We have (Rot * AccCliff). We want to move AccCliff to the left (future).
                 -- Identity: Rot * AccCliff = AccCliff * (AccCliff_dag * Rot * AccCliff)
                 -- So the new effective rotation is: AccCliff_dag * Rot * AccCliff
-                effRot = applyCliffordToRotation accCliff rot
+                -- Adjoint used for the same reason as in splitCliffords.
+                effRot = applyCliffordToRotation (Adjoint accCliff) rot
 
                 -- 2. Decompose the effective rotation into (Post * Core * Pre)
                 (post, core, pre) = decomposePauliRotTuple effRot

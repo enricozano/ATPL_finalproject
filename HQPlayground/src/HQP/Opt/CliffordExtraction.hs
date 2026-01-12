@@ -23,7 +23,7 @@ splitCliffords op
         Compose a b -> 
             let (cliffA, rotA) = splitCliffords a
                 (cliffB, rotB) = splitCliffords b
-                rotA_trans = applyCliffordToRotation (Adjoint cliffB) rotA
+                rotA_trans = applyCliffordToRotation (Adjoint cliffB) rotA -- To push Clifford C past rotation R to the end of the circuit, we transform R into C† R C. Since applyClifford implements C P C†, we pass the Adjoint.
             in (Compose cliffA cliffB, Compose rotA_trans rotB)
         Tensor a b -> 
             let (ca, ra) = splitCliffords a
