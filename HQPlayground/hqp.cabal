@@ -33,6 +33,7 @@ library core
       HQP.Opt,
       HQP.Opt.GateDecomposition,
       HQP.Opt.CliffordExtraction,
+      HQP.Opt.SmartExtraction,
       HQP.PrettyPrint,
       HQP.PrettyPrint.PrettyOp,
       HQP.PrettyPrint.Visualizer,

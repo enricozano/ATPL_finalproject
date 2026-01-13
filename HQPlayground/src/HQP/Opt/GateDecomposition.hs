@@ -60,18 +60,6 @@ targetRot activeIndices totalSize theta =
         Tensor pre (Tensor (R Z theta) post)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 -- ==========================================
 -- 3. EXPANSION LOGIC
 -- ==========================================
