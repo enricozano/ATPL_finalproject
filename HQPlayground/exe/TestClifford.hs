@@ -87,3 +87,38 @@ main = do
     let rHead = R (Tensor Z (Tensor Z (Tensor I I))) 1.0
     let rTail = R (Tensor I (Tensor I (Tensor X X))) 1.0
     runTest "5" "Disjoint Sets (Parallel Operations)" [rHead, rTail]
+
+    -- -------------------------------------------------------------------------
+    -- 6. PAPER FIGURE 7 SCENARIO (QuCLEAR)
+    -- -------------------------------------------------------------------------
+    -- Replicating the Pauli strings from Figure 7 of the QuCLEAR paper.
+    -- P1: Y Z X X Y Z Z 
+    -- P2: Z Z Z I X Y X (Note: Paper P2 is Y Z X I Z Y X, using slightly different P2 here to match tree logic)
+    -- P3: Y Z Y X I Y X
+    -- Note: We construct them carefully to match index ordering 0->6
+    let paperP1 = R (Tensor Y (Tensor Z (Tensor X (Tensor X (Tensor Y (Tensor Z Z)))))) 0.5
+    let paperP2 = R (Tensor Z (Tensor Z (Tensor Z (Tensor I (Tensor X (Tensor Y X)))))) 0.5
+    let paperP3 = R (Tensor Y (Tensor Z (Tensor Y (Tensor X (Tensor I (Tensor Y X)))))) 0.5
+    
+    runTest "6" "QuCLEAR Paper Fig 7 (Complex Tree Synthesis)" [paperP1, paperP2, paperP3]
+
+
+    -- -------------------------------------------------------------------------
+    -- 8. Figure 2 in QuClear paper
+    -- -------------------------------------------------------------------------
+
+    let fig2P1 = R (Tensor Z (Tensor Z (Tensor Z Z))) 0.5
+    let fig2P2 = R (Tensor Y (Tensor Y (Tensor X X))) 0.5
+    
+    runTest "7" "Test figure 2 from QuCLEAR paper" [fig2P1, fig2P2]
+
+    -- -------------------------------------------------------------------------
+    -- 9. Figure 2 in QuClear paper with modification
+    -- -------------------------------------------------------------------------
+
+    let v2fig2P1 = R (Tensor Z (Tensor Z (Tensor Z Z))) 0.5
+    let v2fig2P2 = R (Tensor X (Tensor X (Tensor Y Y))) 0.5
+    
+    runTest "8" "Test figure 2 from QuCLEAR paper" [v2fig2P1, v2fig2P2]
+
+    runTest "9" "Test figure 2 from QuCLEAR paper reversed" [v2fig2P2, v2fig2P1]
