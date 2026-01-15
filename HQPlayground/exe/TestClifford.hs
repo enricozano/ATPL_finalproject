@@ -1,124 +1,191 @@
 module Main where
 
+-- Imported randomIO to get a seed from the operating system
+import System.Random (mkStdGen, randomRs, randomIO)
 import HQP.QOp.Syntax
+import HQP.QOp.HelperFunctions
 import HQP.Opt (optimizeCircuitWithExtraction, optimizeCircuit)
 import HQP.PrettyPrint (visualizeOutput)
 
 -- =============================================================================
--- HELPER FUNCTIONS
+-- 1. HELPER FUNCTIONS
 -- =============================================================================
 
--- | Run a test case: prints the name, the input circuit, and the optimized output.
-runTest :: String -> String -> [QOp] -> IO ()
-runTest name desc rotList = do
+-- | Recursively counts CNOT gates (C X) in a circuit.
+countCNOTs :: QOp -> Int
+countCNOTs op = case op of
+    Compose a b   -> countCNOTs a + countCNOTs b
+    Tensor a b    -> countCNOTs a + countCNOTs b
+    DirectSum a b -> countCNOTs a + countCNOTs b
+    Adjoint a     -> countCNOTs a
+    C inner       -> countControlledX inner
+    _             -> 0
+
+countControlledX :: QOp -> Int
+countControlledX op = case op of
+    X           -> 1
+    Tensor a b  -> countControlledX a + countControlledX b
+    Compose a b -> countControlledX a + countControlledX b
+    Adjoint a   -> countControlledX a
+    _           -> 0
+
+-- | Helper to create Rotations from a string (e.g. "ZZII...")
+mkRot :: String -> Double -> QOp
+mkRot s theta = R (foldr1 Tensor (map charToPauli s)) theta
+  where
+    charToPauli 'I' = I
+    charToPauli 'X' = X
+    charToPauli 'Y' = Y
+    charToPauli 'Z' = Z
+    charToPauli c   = error $ "Unknown Pauli: " ++ [c]
+
+-- | Deterministic Random Rotation Generator using System.Random
+-- Creates an unstructured Pauli string of length 'nQubits'.
+-- Uses mkStdGen with a fixed seed to ensure reproducibility within a single run.
+mkRandomRot :: Int -> Int -> QOp
+mkRandomRot seed nQubits = 
+    let 
+        gen = mkStdGen seed
+        -- Generate nQubits integers between 0 and 3
+        randomInts = take nQubits $ randomRs (0, 3) gen
+        
+        toPauli :: Int -> QOp
+        toPauli 0 = I
+        toPauli 1 = X
+        toPauli 2 = Y
+        toPauli 3 = Z
+        toPauli _ = I
+        
+        pauliList = map toPauli randomInts
+    in
+        R (foldr1 Tensor pauliList) 0.5
+
+-- =============================================================================
+-- 2. TEST RUNNERS
+-- =============================================================================
+
+-- | Detailed test: Prints full circuits (For the regression case)
+runDetailedTest :: String -> String -> [QOp] -> IO ()
+runDetailedTest name desc rotList = do
     putStrLn $ "\n==========================================================="
-    putStrLn $ "TEST " ++ name ++ ": " ++ desc
+    putStrLn $ "DETAILED TEST " ++ name ++ ": " ++ desc
     putStrLn "==========================================================="
     
-    let circuit = foldr1 Compose (reverse rotList) -- Compose applies right-to-left, list is [1, 2, 3]
+    let circuit = foldr1 Compose (reverse rotList)
     
     putStrLn "--- INPUT (Logical Sequence) ---"
     visualizeOutput circuit
     
-    putStrLn "\n--- OPTIMIZED (Physical Sequence) ---"
-    -- Note: optimizeCircuitWithExtraction expects the full circuit QOp
-    visualizeOutput (optimizeCircuitWithExtraction rotList)
+    putStrLn "\n--- SMART OPTIMIZATION (Extraction) ---"
+    let smartCirc = optimizeCircuitWithExtraction rotList
+    visualizeOutput smartCirc
+    
+    putStrLn "\n--- NAIVE OPTIMIZATION (Decompose & Push) ---"
+    let naiveCirc = optimizeCircuit circuit
+    visualizeOutput naiveCirc
     putStrLn ""
 
-    putStrLn "\n--- NAIVE DECOMPOSE AND PUSH (Physical Sequence) ---"
-    -- Note: optimizeCircuitWithExtraction expects the full circuit QOp
-    visualizeOutput (optimizeCircuit circuit)
-    putStrLn ""
+-- | Comparison test: Prints only CNOT counts (For the large benchmark cases)
+runComparisonTest :: String -> String -> [QOp] -> IO ()
+runComparisonTest name desc rotList = do
+    putStrLn $ "-----------------------------------------------------------"
+    putStrLn $ "BENCHMARK " ++ name ++ ": " ++ desc
+    
+    let logicalCirc = foldr1 Compose (reverse rotList)
+
+    -- 1. Smart Extraction
+    putStrLn "  > Running Smart Extraction..."
+    let smartCirc = optimizeCircuitWithExtraction rotList
+    let smartCNOTs = countCNOTs smartCirc
+    putStrLn $ "    Done. CNOTs: " ++ show smartCNOTs
+
+    -- 2. Naive Decompose & Push
+    putStrLn "  > Running Naive Optimization..."
+    let naiveCirc = optimizeCircuit logicalCirc
+    let naiveCNOTs = countCNOTs naiveCirc
+    putStrLn $ "    Done. CNOTs: " ++ show naiveCNOTs
+    
+    let saving = if naiveCNOTs > 0 
+                 then (fromIntegral (naiveCNOTs - smartCNOTs) / fromIntegral naiveCNOTs) * 100 
+                 else 0.0 :: Double
+                 
+    putStrLn $ "  > Reduction:   " ++ take 5 (show saving) ++ "%"
+    putStrLn "-----------------------------------------------------------\n"
 
 -- =============================================================================
--- SCENARIOS
+-- 3. MAIN SUITE
 -- =============================================================================
 
 main :: IO ()
 main = do
-    putStrLn "Running Clifford Extraction & Smart Tree Synthesis Tests..."
+    putStrLn "\n=== CLIFFORD OPTIMIZATION SUITE ===\n"
 
     -- -------------------------------------------------------------------------
-    -- 1. REGRESSION SCENARIO (The "Correctness" Proof)
-    -- This matches exactly the case we debugged where Y becomes X via CNOTs.
+    -- TEST 1: The Regression Scenario (Detailed)
     -- -------------------------------------------------------------------------
-    -- P1: Z Z Y X X Z Y (7 Qubits)
-    let p1 = R (Tensor Z (Tensor Z (Tensor Y (Tensor X (Tensor X (Tensor Z Y)))))) 1.0
+    -- P1: Z Z Y X X Z Y 
+    let p1 = mkRot "ZZYXXZY" 1.0
     -- P2: X Y Z I X Z Y
-    let p2 = R (Tensor X (Tensor Y (Tensor Z (Tensor I (Tensor X (Tensor Z Y)))))) 1.0
+    let p2 = mkRot "XYZIXZY" 1.0
     -- P3: X Y I Z Y Z X
-    let p3 = R (Tensor X (Tensor Y (Tensor I (Tensor Z (Tensor Y (Tensor Z X)))))) 1.0
+    let p3 = mkRot "XYIZYZX" 1.0
     
-    runTest "1" "Regression Scenario (Complex Propagation)" [p1, p2, p3]
+    runDetailedTest "1" "Regression (Propagation Check)" [p1, p2, p3]
+
+    putStrLn "\n=== 10-QUBIT / DEPTH-5 BENCHMARKS ===\n"
 
     -- -------------------------------------------------------------------------
-    -- 2. Y-PROPAGATION CHECK (Critical for Basis Logic)
-    -- R(Y) on Q0. Uncompute is Rx.
-    -- Next is R(Z) on Q0.
-    -- Rx * Z * Rx† = Y. 
-    -- We expect the second rotation to become R(Y) (or simplified) in the Z-frame.
+    -- BENCHMARK A: High Overlap (Dense)
     -- -------------------------------------------------------------------------
-    let y1 = R Y 1.0
-    let z1 = R Z 1.0
-    runTest "2" "Y-Propagation (Y -> Z should become Y-Frame)" [y1, z1]
+    let ba1 = mkRot "ZZZZZXXXXX" 0.5
+    let ba2 = mkRot "ZZZZZYYYYY" 0.5 
+    let ba3 = mkRot "XXXXXZZZZZ" 0.5 
+    let ba4 = mkRot "YYYYYZZZZZ" 0.5 
+    let ba5 = mkRot "ZZZZZXXXXX" 0.5 
+
+    runComparisonTest "A" "High Overlap / Dense (10Q, Depth 5)" [ba1, ba2, ba3, ba4, ba5]
 
     -- -------------------------------------------------------------------------
-    -- 3. COMMON SUBSTRUCTURE (Optimization Check)
-    -- Two identical rotations. The second one should have a tiny CNOT tree.
+    -- BENCHMARK B: Sparse / Localized
     -- -------------------------------------------------------------------------
-    -- R(Z Z Z Z)
-    let rZ4 = R (Tensor Z (Tensor Z (Tensor Z Z))) 1.0
-    runTest "3" "Common Substructure (Identical Rotations)" [rZ4, rZ4]
+    let bb1 = mkRot "ZZIIIIIIII" 0.5 
+    let bb2 = mkRot "IIXXIIIIII" 0.5 
+    let bb3 = mkRot "IIIIYYIIII" 0.5 
+    let bb4 = mkRot "IIIIIIZZII" 0.5 
+    let bb5 = mkRot "IIIIIIIIXX" 0.5 
+
+    runComparisonTest "B" "Sparse / Disjoint (10Q, Depth 5)" [bb1, bb2, bb3, bb4, bb5]
 
     -- -------------------------------------------------------------------------
-    -- 4. ALTERNATING BASES (Stress Test)
-    -- Forces full uncompute/recompute cycles.
-    -- X(all) -> Z(all) -> X(all)
+    -- BENCHMARK C: Complex Interleaved
     -- -------------------------------------------------------------------------
-    let rX4 = R (Tensor X (Tensor X (Tensor X X))) 1.0
-    let rZ4_alt = R (Tensor Z (Tensor Z (Tensor Z Z))) 1.0
-    runTest "4" "Alternating Bases (X -> Z -> X)" [rX4, rZ4_alt, rX4]
+    let bc1 = mkRot "XZXZXZXZXZ" 0.5
+    let bc2 = mkRot "YIYIYIYIYI" 0.5
+    let bc3 = mkRot "ZXZXZXZXZX" 0.5
+    let bc4 = mkRot "IYIYIYIYIY" 0.5
+    let bc5 = mkRot "XZXZXZXZXZ" 0.5
 
-    -- -------------------------------------------------------------------------
-    -- 5. DISJOINT SETS (Parallelism)
-    -- R(Z Z I I) followed by R(I I X X).
-    -- They should not interfere, and CNOT trees should be independent.
-    -- -------------------------------------------------------------------------
-    let rHead = R (Tensor Z (Tensor Z (Tensor I I))) 1.0
-    let rTail = R (Tensor I (Tensor I (Tensor X X))) 1.0
-    runTest "5" "Disjoint Sets (Parallel Operations)" [rHead, rTail]
+    runComparisonTest "C" "Interleaved / Alternating (10Q, Depth 5)" [bc1, bc2, bc3, bc4, bc5]
 
-    -- -------------------------------------------------------------------------
-    -- 6. PAPER FIGURE 7 SCENARIO (QuCLEAR)
-    -- -------------------------------------------------------------------------
-    -- Replicating the Pauli strings from Figure 7 of the QuCLEAR paper.
-    -- P1: Y Z X X Y Z Z 
-    -- P2: Z Z Z I X Y X (Note: Paper P2 is Y Z X I Z Y X, using slightly different P2 here to match tree logic)
-    -- P3: Y Z Y X I Y X
-    -- Note: We construct them carefully to match index ordering 0->6
-    let paperP1 = R (Tensor Y (Tensor Z (Tensor X (Tensor X (Tensor Y (Tensor Z Z)))))) 0.5
-    let paperP2 = R (Tensor Z (Tensor Z (Tensor Z (Tensor I (Tensor X (Tensor Y X)))))) 0.5
-    let paperP3 = R (Tensor Y (Tensor Z (Tensor Y (Tensor X (Tensor I (Tensor Y X)))))) 0.5
+    putStrLn "\n=== LARGE SCALE STRESS TESTS (TRUE RANDOM) ===\n"
+
+    -- Get a random integer from the system
+    masterSeed <- randomIO :: IO Int
     
-    runTest "6" "QuCLEAR Paper Fig 7 (Complex Tree Synthesis)" [paperP1, paperP2, paperP3]
-
+    putStrLn $ ">>> Initializing Random Generator with System Seed: " ++ show masterSeed
+    putStrLn ">>> Different runs will now produce different circuits."
 
     -- -------------------------------------------------------------------------
-    -- 8. Figure 2 in QuClear paper
+    -- BENCHMARK D: Unstructured / Random (20 Qubits, Depth 20)
     -- -------------------------------------------------------------------------
+    let randomRotations20 = [ mkRandomRot (masterSeed + i) 20 | i <- [0..19] ]
+    runComparisonTest "D" "Unstructured / Random (20Q, Depth 20)" randomRotations20
 
-    let fig2P1 = R (Tensor Z (Tensor Z (Tensor Z Z))) 0.5
-    let fig2P2 = R (Tensor Y (Tensor Y (Tensor X X))) 0.5
+    -- -------------------------------------------------------------------------
+    -- BENCHMARK E: Large Scale (100 Qubits, Depth 100)
+    -- -------------------------------------------------------------------------
+    putStrLn ">>> Generating large scale circuit (100 Qubits, Depth 100)..."
+    -- Note: We add a large offset to the seed to ensure independence from the previous test
+    let largeRotations = [ mkRandomRot (masterSeed + 1000 + i) 100 | i <- [0..99] ]
     
-    runTest "7" "Test figure 2 from QuCLEAR paper" [fig2P1, fig2P2]
-
-    -- -------------------------------------------------------------------------
-    -- 9. Figure 2 in QuClear paper with modification
-    -- -------------------------------------------------------------------------
-
-    let v2fig2P1 = R (Tensor Z (Tensor Z (Tensor Z Z))) 0.5
-    let v2fig2P2 = R (Tensor X (Tensor X (Tensor Y Y))) 0.5
-    
-    runTest "8" "Test figure 2 from QuCLEAR paper" [v2fig2P1, v2fig2P2]
-
-    runTest "9" "Test figure 2 from QuCLEAR paper reversed" [v2fig2P2, v2fig2P1]
+    runComparisonTest "E" "Large Scale (100Q, Depth 100)" largeRotations
