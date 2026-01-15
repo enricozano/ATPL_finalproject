@@ -6,12 +6,9 @@ import HQP.QOp.Symplectic (applyCliffordToRotation)
 import HQP.Opt.GateDecomposition (toZBasis, fromZBasis, buildNaiveLadderPair)
 import Data.List (partition)
 
--- Rimosso: import Debug.Trace (trace)
-
--- =========================================================================
---  1. MAIN WORKFLOW: CLIFFORD EXTRACTION OPTIMIZATION
--- =========================================================================
-
+-- Description: Main entry point to optimize a sequence of rotations by extracting Clifford gates and optimizing parity networks.
+-- Inputs: A list of Quantum Operators (rotations).
+-- Outputs: A single composed Quantum Operator representing the optimized circuit.
 optimizeCircuitWithExtraction :: [QOp] -> QOp
 optimizeCircuitWithExtraction rotations = 
     let 
@@ -19,55 +16,36 @@ optimizeCircuitWithExtraction rotations =
     in 
         Compose extractedClifford physicalCircuit
 
+-- Description: Recursively processes rotations to perform basis changes, synthesize smart CNOT trees, and push Cliffords forward.
+-- Inputs: A list of future rotations to process, and the currently accumulated Clifford operator.
+-- Outputs: A tuple containing the optimized physical circuit block and the final accumulated Clifford operator.
 processRotations :: [QOp] -> QOp -> (QOp, QOp)
 processRotations [] accCliff = (One, accCliff)
 processRotations (currentRot : futureRots) accCliff = 
     let 
-        -- 0. PRE-PROCESSING
-        -- Rimosso il trace su currentRot
         (pauliString, theta) = case currentRot of
             R p t -> (p, t)
             _     -> (I, 0.0) 
         
         n = sizeOf currentRot 
 
-        -- -----------------------------------------------------------------
-        -- STEP 1: BASIS CHANGE EXTRACTION
-        -- -----------------------------------------------------------------
         basisUncompute = fromZBasis pauliString 
         
-        -- Rimosso debugMsg2 e basisUncompute_traced
-        -- Usiamo direttamente basisUncompute
         accCliff_afterBasis = Compose accCliff basisUncompute
 
-        -- Future' = BasisUncompute_dag * Future * BasisUncompute
         adjUncompute = Adjoint basisUncompute
         futureRots_ZFrame = updateFutures adjUncompute futureRots
         
-        -- Rimosso debugMsg3 e futureRots_ZFrame_traced
-        -- Usiamo direttamente futureRots_ZFrame
-
-        -- -----------------------------------------------------------------
-        -- STEP 2: SMART CNOT TREE SYNTHESIS
-        -- -----------------------------------------------------------------
         activeIndices = getActiveIndices (R pauliString theta)
 
-        -- Pass 'n' (total size) to the synthesis function
         (ladder, unladder, rootIdx) = synthesizeSmartTree n activeIndices futureRots_ZFrame
 
         accCliff_afterTree = Compose accCliff_afterBasis unladder
 
         futureRots_Final = updateFutures (Adjoint unladder) futureRots_ZFrame
 
-        -- Rimosso debugMsg4 e futureRots_Final_traced
-        -- Usiamo direttamente futureRots_Final
-
-        -- -----------------------------------------------------------------
-        -- STEP 3: EMIT PHYSICAL GATES
-        -- -----------------------------------------------------------------
         basisCompute = toZBasis pauliString 
         
-        -- Core Z Rotation (using correct size n)
         coreRot = R (generateZOnIndexWithSize rootIdx n) theta
 
         localBlock = Compose coreRot (Compose ladder basisCompute)
@@ -77,25 +55,20 @@ processRotations (currentRot : futureRots) accCliff =
         (Compose restOfCircuit localBlock, finalAcc)
 
 
--- =========================================================================
---  2. SMART TREE SYNTHESIS (Algorithm 1)
--- =========================================================================
-
--- | Synthesizes a CNOT tree.
--- Now takes 'n' (total system size) to ensure gates are dimensionally correct.
+-- Description: Synthesizes a CNOT ladder (tree) optimized based on the structure of future Pauli strings.
+-- Inputs: The total number of qubits, a list of active indices, and a list of future rotation operators.
+-- Outputs: A tuple containing the ladder operator, the un-ladder operator, and the index of the root qubit.
 synthesizeSmartTree :: Int -> [Int] -> [QOp] -> (QOp, QOp, Int)
 synthesizeSmartTree n indices futures = 
     case futures of
         [] -> 
-            -- Fallback: Naive ladder
             let (lad, unlad) = buildNaiveLadderPair indices n
             in (lad, unlad, if null indices then 0 else last indices)
             
         (nextRot : _) -> 
-            -- FIX: Extract the Pauli string from the Rotation gate
             let nextPauli = case nextRot of
                     R p _ -> p
-                    _     -> nextRot -- Fallback if it's somehow not an R gate
+                    _     -> nextRot
             in
             if length indices <= 1 then
                 (One, One, if null indices then 0 else head indices)
@@ -103,7 +76,6 @@ synthesizeSmartTree n indices futures =
                 let
                     (idxsI, idxsX, idxsY, idxsZ) = partitionIndices nextPauli indices
                     
-                    -- Pass 'n' recursively
                     recCall idxs = synthesizeSmartTree n idxs (tail futures)
                     
                     (ladI, unladI, rI) = if null idxsI then (One, One, -1) else recCall idxsI
@@ -129,9 +101,11 @@ synthesizeSmartTree n indices futures =
                     (totalLadder, totalUnladder, finalRoot)
 
 
--- | Connects roots using the 3-step heuristic (Z->Y, I->X, Y->X).
+-- Description: Connects the roots of different Pauli sub-trees using heuristic rules (Z->Y, I->X, Y->X) to optimize the ladder structure.
+-- Inputs: Total number of qubits, a list of root information tuples (Pauli type, Ladder op, Root Index), and the next Pauli operator (unused).
+-- Outputs: A tuple containing the connecting ladder, connecting un-ladder, and the final root index.
 connectRootsSmart :: Int -> [(QOp, QOp, Int)] -> QOp -> (QOp, QOp, Int)
-connectRootsSmart n rootsInfo nextPauli = 
+connectRootsSmart n rootsInfo _ = 
     let 
         available = [(op, idx) | (op, _, idx) <- rootsInfo]
         
@@ -139,58 +113,50 @@ connectRootsSmart n rootsInfo nextPauli =
             let op = genericCNOT c t n
             in (op, op)
 
-        -- 1. Z and Y connection (Prioritize Z -> Y)
-        -- Result is labeled Y (Target dominates)
         (connZY_L, connZY_U, rootsAfterZY) = 
             case (lookup Z available, lookup Y available) of
                 (Just rZ, Just rY) -> 
                     let (l, u) = makeCNOT rZ rY
-                        rem = filter (\(o,_) -> o /= Z && o /= Y) available
-                    in (l, u, rem ++ [(Y, rY)])
+                        remaining = filter (\(o,_) -> o /= Z && o /= Y) available
+                    in (l, u, remaining ++ [(Y, rY)])
                 _ -> (One, One, available)
 
-        -- 2. I and X connection (Prioritize I -> X)
-        -- Result is labeled X (Target dominates)
         (connIX_L, connIX_U, rootsAfterIX) = 
             case (lookup I rootsAfterZY, lookup X rootsAfterZY) of
                 (Just rI, Just rX) -> 
                     let (l, u) = makeCNOT rI rX
-                        rem = filter (\(o,_) -> o /= I && o /= X) rootsAfterZY
-                    in (l, u, rem ++ [(X, rX)])
+                        remaining = filter (\(o,_) -> o /= I && o /= X) rootsAfterZY
+                    in (l, u, remaining ++ [(X, rX)])
                 _ -> (One, One, rootsAfterZY)
 
-        -- 3. Y and X connection (Prioritize Y -> X)  <-- NEW RULE ADDED HERE
-        -- This connects the survivors of the previous two steps.
         (connYX_L, connYX_U, rootsAfterYX) = 
             case (lookup Y rootsAfterIX, lookup X rootsAfterIX) of
                 (Just rY, Just rX) -> 
                     let (l, u) = makeCNOT rY rX
-                        rem = filter (\(o,_) -> o /= Y && o /= X) rootsAfterIX
-                    in (l, u, rem ++ [(X, rX)])
+                        remaining = filter (\(o,_) -> o /= Y && o /= X) rootsAfterIX
+                    in (l, u, remaining ++ [(X, rX)])
                 _ -> (One, One, rootsAfterIX)
 
-        -- 4. Linear for remaining
         finalIndices = map snd rootsAfterYX
         (linearLad, linearUnlad) = buildNaiveLadderPair finalIndices n
         finalRoot = if null finalIndices then 0 else last finalIndices
 
-        -- Compose all connection steps in order
-        -- Order of Application (Inner to Outer / Right to Left):
-        -- Linear . YX . IX . ZY
         totalLadder = Compose linearLad (Compose connYX_L (Compose connIX_L connZY_L))
         totalUnlad  = Compose connZY_U (Compose connIX_U (Compose connYX_U linearUnlad))
 
     in (totalLadder, totalUnlad, finalRoot)
 
 
--- =========================================================================
---  3. HELPER FUNCTIONS
--- =========================================================================
-
+-- Description: Updates a list of future rotation operators by applying a Clifford transformation to them.
+-- Inputs: A Clifford operator and a list of rotation operators.
+-- Outputs: A list of transformed rotation operators.
 updateFutures :: QOp -> [QOp] -> [QOp]
 updateFutures clifford ops = 
     map (applyCliffordToRotation clifford) ops
 
+-- Description: Partitions a list of qubit indices into four lists (I, X, Y, Z) corresponding to the Pauli operator acting on them.
+-- Inputs: A Pauli operator and a list of qubit indices to classify.
+-- Outputs: A 4-tuple of integer lists corresponding to indices for I, X, Y, and Z.
 partitionIndices :: QOp -> [Int] -> ([Int], [Int], [Int], [Int])
 partitionIndices pauli indices = 
     let 
@@ -201,22 +167,50 @@ partitionIndices pauli indices =
     in 
         (is, xs, ys, zs)
 
+-- Description: Retrieves the single-qubit Pauli operator acting on a specific index within a larger Pauli string.
+-- Inputs: A Pauli operator and the target qubit index.
+-- Outputs: The single-qubit Pauli operator (I, X, Y, or Z) at that index.
 getPauliOpAt :: QOp -> Int -> QOp
 getPauliOpAt op idx = 
     let ops = flattenOps op 
     in if idx >= 0 && idx < length ops then ops !! idx else I 
 
-getActiveIndices :: QOp -> [Int]
-getActiveIndices (R pauli _) = 
-    [i | (i, p) <- zip [0..] (flattenOps pauli), p /= I]
-getActiveIndices _ = []
 
+-- Description: Extracts the rotation angle theta from a Rotation operator.
+-- Inputs: A Rotation operator (R).
+-- Outputs: The rotation angle as a RealT (Double).
 getAngle :: QOp -> RealT
 getAngle (R _ theta) = theta
 getAngle _ = 0.0
 
+-- Description: Constructs a Z rotation operator on a specific qubit index within an n-qubit system.
+-- Inputs: The target qubit index and the total number of qubits.
+-- Outputs: A Tensor product operator representing Z on the target index and Identity elsewhere.
 generateZOnIndexWithSize :: Int -> Int -> QOp
 generateZOnIndexWithSize idx n = 
     let pre  = nId idx
         post = nId (n - idx - 1)
     in Tensor pre (Tensor Z post)
+
+-- Description: Counts the total number of CNOT gates in a given quantum operator tree.
+-- Inputs: A Quantum Operator.
+-- Outputs: The integer count of CNOT gates.
+countCNOTs :: QOp -> Int
+countCNOTs op = case op of
+    Compose a b   -> countCNOTs a + countCNOTs b
+    Tensor a b    -> countCNOTs a + countCNOTs b
+    DirectSum a b -> countCNOTs a + countCNOTs b
+    Adjoint a     -> countCNOTs a  
+    C innerOp     -> countControlledX innerOp
+    _             -> 0
+
+-- Description: Auxiliary function to count X gates within a Controlled operator structure, effectively counting CNOTs.
+-- Inputs: The inner operator of a Controlled gate.
+-- Outputs: The integer count of X gates found.
+countControlledX :: QOp -> Int
+countControlledX op = case op of
+    X           -> 1
+    Tensor a b  -> countControlledX a + countControlledX b
+    Compose a b -> countControlledX a + countControlledX b
+    Adjoint a   -> countControlledX a 
+    _           -> 0

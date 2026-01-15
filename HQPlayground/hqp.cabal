@@ -36,8 +36,6 @@ library core
       HQP.Opt.SmartExtraction,
       HQP.PrettyPrint,
       HQP.PrettyPrint.PrettyOp,
-      HQP.PrettyPrint.Visualizer,
-      Programs.QFT 
     build-depends:    
         base,
         hmatrix,
@@ -51,11 +49,8 @@ common exe-common
     build-depends:
         base,
         hmatrix,
+        random,
         hqp:core 
-
-executable TestDecomposition
-    import:           exe-common
-    main-is:          TestDecomposition.hs
 
 executable TestClifford
     import:           exe-common

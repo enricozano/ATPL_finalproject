@@ -3,6 +3,10 @@ module HQP.QOp.Symplectic where
 import HQP.QOp.Syntax
 import HQP.QOp.HelperFunctions
 
+-- =========================================================================
+--  1. DATA TYPES AND REPRESENTATIONS
+-- =========================================================================
+
 -- | Symplectic representation of a Pauli String.
 -- sign = True represents -1, False represents +1.
 data Symplectic = Symp {
@@ -11,7 +15,15 @@ data Symplectic = Symp {
     sign :: Bool 
 } deriving (Show, Eq)
 
--- | Convert a Pauli operator to its Symplectic vector.
+
+-- =========================================================================
+--  2. CONVERSIONS (PAULI <-> SYMPLECTIC)
+-- =========================================================================
+
+-- Description: Converts a Pauli Operator (tensor structure) into its Symplectic vector representation.
+--              Maps I->(0,0), X->(1,0), Z->(0,1), Y->(1,1).
+-- Inputs: A Quantum Operator (must be a valid Pauli string).
+-- Outputs: A Symplectic data structure.
 pauliToSymp :: QOp -> Symplectic
 pauliToSymp op = case op of
     I -> Symp [False] [False] False
@@ -25,7 +37,9 @@ pauliToSymp op = case op of
     One -> Symp [] [] False 
     _ -> error $ "pauliToSymp: Operator " ++ show op ++ " is not a valid Pauli String."
 
--- | Convert a Symplectic vector back to a Pauli operator string.
+-- Description: Converts a Symplectic vector back into a Pauli Operator string.
+-- Inputs: A Symplectic data structure.
+-- Outputs: A Quantum Operator (Tensor chain of Paulis).
 sympToPauli :: Symplectic -> QOp
 sympToPauli (Symp [] [] _) = One
 sympToPauli (Symp (x:xt) (z:zt) _) = 
@@ -38,21 +52,16 @@ sympToPauli (Symp (x:xt) (z:zt) _) =
     in if null xt then op else Tensor op rest
 sympToPauli _ = error "sympToPauli: inconsistent vector lengths"
 
-findXIndex :: QOp -> Maybe Int
-findXIndex op = case op of
-    X -> Just 0
-    Tensor a b -> 
-        case findXIndex a of
-            Just k -> Just k
-            Nothing -> case findXIndex b of
-                Just k -> Just (sizeOf a + k)
-                Nothing -> Nothing
-    I -> Nothing
-    One -> Nothing
-    _ -> Nothing
 
--- | Conjugates a Pauli string (symp) by a Clifford operator (cliff).
---   Computes C * P * C_dagger
+-- =========================================================================
+--  3. CORE LOGIC: CLIFFORD CONJUGATION
+-- =========================================================================
+
+-- Description: Recursively conjugates a Pauli string (symp) by a Clifford operator.
+--              Effectively computes: C * P * C†.
+--              Updates the X and Z bits and the phase (sign) according to symplectic rules.
+-- Inputs: A Clifford Operator (C) and the Symplectic representation of a Pauli (P).
+-- Outputs: The Symplectic representation of the resulting Pauli (P').
 applyCliffordRecursive :: QOp -> Symplectic -> Symplectic
 applyCliffordRecursive cliff symp = case cliff of
     Compose outer inner -> applyCliffordRecursive outer (applyCliffordRecursive inner symp)
@@ -71,36 +80,28 @@ applyCliffordRecursive cliff symp = case cliff of
         _ -> applyCliffordRecursive op symp 
 
     C inner -> 
-        -- FIX: General handling for C(Operator) using recursive search for X target.
-        -- Qubit 0 is always Control. Target is at (1 + index of X in inner).
         case findXIndex inner of
             Just idx -> 
                 let 
                     targetAbs = idx + 1 
                     
-                    -- Extract bits
                     xc = xs symp !! 0
                     zc = zs symp !! 0
                     xt = xs symp !! targetAbs
                     zt = zs symp !! targetAbs
                     
-                    -- CNOT Logic: 
-                    -- X_target flips if X_control is 1
-                    -- Z_control flips if Z_target is 1
                     xt_new = xt `bxor` xc 
                     zc_new = zc `bxor` zt
                     phase_flip = xc && zt && (not (xt `bxor` zc))
                     
-                    -- Helper to update list
                     replaceAt i val list = take i list ++ [val] ++ drop (i+1) list
                     
-                    -- Apply updates
                     xs_final = replaceAt targetAbs xt_new (xs symp)
                     zs_final = replaceAt 0 zc_new (zs symp)
                     s_final  = (sign symp) `bxor` phase_flip
                 in
                     Symp xs_final zs_final s_final
-            Nothing -> symp -- Treat as Identity if no X found (e.g. C(I))
+            Nothing -> symp 
 
     R X theta 
         | abs (theta - (pi/2)) < 0.0001 -> 
@@ -125,8 +126,15 @@ applyCliffordRecursive cliff symp = case cliff of
     I -> symp; One -> symp
     _ -> symp 
 
--- | High-level function to conjugate a rotation by a Clifford.
---   C . R(P, theta) . C_dagger = R(C.P.C_dag, theta)
+
+-- =========================================================================
+--  4. HIGH-LEVEL API
+-- =========================================================================
+
+-- Description: High-level function to conjugate a full rotation gate R(P, theta) by a Clifford C.
+--              Result: R(C · P · C†, ±theta).
+-- Inputs: A Clifford Operator C and the Rotation Operator R(P, theta).
+-- Outputs: The transformed Rotation Operator.
 applyCliffordToRotation :: QOp -> QOp -> QOp
 applyCliffordToRotation cliff op = case op of
     R pauli theta -> 
@@ -137,4 +145,3 @@ applyCliffordToRotation cliff op = case op of
     _ -> op
 
 
--- note: would be smart to convert the full circuit into symplectic form and optimize there
