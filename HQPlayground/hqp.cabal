@@ -55,3 +55,7 @@ common exe-common
 executable TestClifford
     import:           exe-common
     main-is:          TestClifford.hs
+
+executable Benchmark
+    import:           exe-common
+    main-is:          Benchmark.hs
