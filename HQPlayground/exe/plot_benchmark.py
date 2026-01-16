@@ -7,7 +7,7 @@ from io import StringIO
 def main():
     # 1. Load Data
     filename = 'benchmark_results.csv'
-    output_dir = 'benchmark_results'
+    output_dir = '../../benchmark_results'
 
     if not os.path.exists(filename):
         print(f"Error: '{filename}' not found.")
