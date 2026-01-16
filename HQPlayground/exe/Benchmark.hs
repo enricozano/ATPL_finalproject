@@ -7,7 +7,7 @@ import System.CPUTime (getCPUTime)
 
 -- MODULE IMPORTS
 import HQP.QOp.Syntax
-import HQP.Opt.GateDecomposition (optimizeCircuit)
+import HQP.Opt.GateDecomposition (optimizeCircuit, expandAllPauliGadgets)
 import HQP.Opt.SmartExtraction (optimizeCircuitWithExtraction, countCNOTs)
 
 -- =========================================================================
@@ -42,8 +42,7 @@ generateRandomCircuit nQubits depth = do
 
     return $ map makeLayer [0..depth-1]
 
--- Helper to measure execution time and CNOT count simultaneously
--- Since Haskell is lazy, the optimization only happens when we force the result (via count).
+-- Helper to measure execution time and CNOT count
 measureOptimization :: QOp -> IO (Double, Int)
 measureOptimization op = do
     start <- getCPUTime
@@ -64,19 +63,30 @@ runBatchBenchmark n d iterations = do
         circuitOps <- generateRandomCircuit n d
         let rawCircuit = foldl Compose One circuitOps
         
-        -- 2. Naive Optimization (Time & Count)
+        -- 2. Reference: Simple Expansion (Baseline)
+        (timeExpanded, cnotExpanded) <- measureOptimization (expandAllPauliGadgets rawCircuit)
+
+        -- 3. Naive Optimization
         (timeNaive, cnotNaive) <- measureOptimization (optimizeCircuit rawCircuit)
         
-        -- 3. Smart (QuCLEAR) Optimization (Time & Count)
+        -- 4. Smart (QuCLEAR) Optimization
         (timeSmart, cnotSmart) <- measureOptimization (optimizeCircuitWithExtraction circuitOps)
         
-        -- 4. Calculate Reduction Stats
-        let reduction = if cnotNaive == 0 
+        -- 5. Calculate Reduction Stats
+        
+        -- Reduction: Naive vs Smart
+        let reductionNaive = if cnotNaive == 0 
                         then 0.0 
                         else 100.0 * (fromIntegral (cnotNaive - cnotSmart) / fromIntegral cnotNaive) :: Double
 
-        -- 5. Print CSV Row: Qubits, Depth, NaiveCNOTs, SmartCNOTs, ReductionPct, NaiveTime, SmartTime
-        printf "%d,%d,%d,%d,%.4f,%.6f,%.6f\n" n d cnotNaive cnotSmart reduction timeNaive timeSmart
+        -- Reduction: Baseline (Expanded) vs Smart
+        let reductionBaseline = if cnotExpanded == 0
+                        then 0.0
+                        else 100.0 * (fromIntegral (cnotExpanded - cnotSmart) / fromIntegral cnotExpanded) :: Double
+
+        -- 6. Print CSV Row
+        -- Columns: Qubits, Depth, ExpandedCNOTs, NaiveCNOTs, SmartCNOTs, ReductionNaive, ReductionBaseline, ExpandedTime, NaiveTime, SmartTime
+        printf "%d,%d,%d,%d,%d,%.4f,%.4f,%.6f,%.6f,%.6f\n" n d cnotExpanded cnotNaive cnotSmart reductionNaive reductionBaseline timeExpanded timeNaive timeSmart
 
 -- =========================================================================
 --  MAIN
@@ -84,13 +94,11 @@ runBatchBenchmark n d iterations = do
 
 main :: IO ()
 main = do
-    -- Print CSV Header (Now includes Time columns)
-    putStrLn "Qubits,Depth,NaiveCNOTs,SmartCNOTs,ReductionPct,NaiveTime,SmartTime"
+    -- Print CSV Header
+    putStrLn "Qubits,Depth,ExpandedCNOTs,NaiveCNOTs,SmartCNOTs,ReductionNaive,ReductionBaseline,ExpandedTime,NaiveTime,SmartTime"
     
     -- Run Case A: 20 Qubits, Depth 20, 500 iterations
     runBatchBenchmark 20 20 500
     
-    -- Run Case B: 50 Qubits, Depth 50, 500 iterations
-    runBatchBenchmark 50 50 100
-
-    --could add other cases with more qubits/depth if needed
+    -- Run Case B: 50 Qubits, Depth 50, 50 iterations
+    runBatchBenchmark 50 50 50
