@@ -101,48 +101,60 @@ synthesizeSmartTree n indices futures =
                     (totalLadder, totalUnladder, finalRoot)
 
 
--- Description: Connects the roots of different Pauli sub-trees using heuristic rules (Z->Y, I->X, Y->X) to optimize the ladder structure.
--- Inputs: Total number of qubits, a list of root information tuples (Pauli type, Ladder op, Root Index), and the next Pauli operator (unused).
--- Outputs: A tuple containing the connecting ladder, connecting un-ladder, and the final root index.
+-- Description: Connects roots using a cascading strategy without fallback to linear ladders.
+-- Logic:
+-- 1. Left Bracket (Z/Y): Connect Z -> Y. If one is missing, the other promotes.
+-- 2. Right Bracket (I/X): Connect I -> X. If one is missing, the other promotes.
+-- 3. Final: Connect Left Survivor -> Right Survivor.
 connectRootsSmart :: Int -> [(QOp, QOp, Int)] -> QOp -> (QOp, QOp, Int)
 connectRootsSmart n rootsInfo _ = 
     let 
-        available = [(op, idx) | (op, _, idx) <- rootsInfo]
-        
-        makeCNOT c t = 
-            let op = genericCNOT c t n
+        makeCNOT victimIdx survivorIdx = 
+            let op = genericCNOT victimIdx survivorIdx n
             in (op, op)
 
-        (connZY_L, connZY_U, rootsAfterZY) = 
-            case (lookup Z available, lookup Y available) of
-                (Just rZ, Just rY) -> 
+        available typeKey = 
+            case filter (\(t, _, _) -> t == typeKey) rootsInfo of
+                (_, _, idx):_ -> Just idx
+                [] -> Nothing
+
+        (ladZY, unladZY, survivorLeft) = 
+            case (available Y, available Z) of
+                (Just rY, Just rZ) -> 
                     let (l, u) = makeCNOT rZ rY
-                        remaining = filter (\(o,_) -> o /= Z && o /= Y) available
-                    in (l, u, remaining ++ [(Y, rY)])
-                _ -> (One, One, available)
+                    in (l, u, Just rY)
+                (Just rY, Nothing) -> 
+                    (One, One, Just rY)
+                (Nothing, Just rZ) -> 
+                    (One, One, Just rZ)
+                (Nothing, Nothing) -> 
+                    (One, One, Nothing)
 
-        (connIX_L, connIX_U, rootsAfterIX) = 
-            case (lookup I rootsAfterZY, lookup X rootsAfterZY) of
-                (Just rI, Just rX) -> 
+        (ladIX, unladIX, survivorRight) = 
+            case (available X, available I) of
+                (Just rX, Just rI) -> 
                     let (l, u) = makeCNOT rI rX
-                        remaining = filter (\(o,_) -> o /= I && o /= X) rootsAfterZY
-                    in (l, u, remaining ++ [(X, rX)])
-                _ -> (One, One, rootsAfterZY)
+                    in (l, u, Just rX)
+                (Just rX, Nothing) -> 
+                    (One, One, Just rX)
+                (Nothing, Just rI) -> 
+                    (One, One, Just rI)
+                (Nothing, Nothing) -> 
+                    (One, One, Nothing)
 
-        (connYX_L, connYX_U, rootsAfterYX) = 
-            case (lookup Y rootsAfterIX, lookup X rootsAfterIX) of
-                (Just rY, Just rX) -> 
-                    let (l, u) = makeCNOT rY rX
-                        remaining = filter (\(o,_) -> o /= Y && o /= X) rootsAfterIX
-                    in (l, u, remaining ++ [(X, rX)])
-                _ -> (One, One, rootsAfterIX)
-
-        finalIndices = map snd rootsAfterYX
-        (linearLad, linearUnlad) = buildNaiveLadderPair finalIndices n
-        finalRoot = if null finalIndices then 0 else last finalIndices
-
-        totalLadder = Compose linearLad (Compose connYX_L (Compose connIX_L connZY_L))
-        totalUnlad  = Compose connZY_U (Compose connIX_U (Compose connYX_U linearUnlad))
+        (finalLad, finalUnlad, finalRoot) = 
+            case (survivorRight, survivorLeft) of
+                (Just rRight, Just rLeft) -> 
+                    let (l, u) = makeCNOT rLeft rRight
+                    in (l, u, rRight)
+                (Just rRight, Nothing) -> 
+                    (One, One, rRight)
+                (Nothing, Just rLeft) -> 
+                    (One, One, rLeft)
+                (Nothing, Nothing) -> 
+                    (One, One, 0)
+        totalLadder = Compose finalLad (Compose ladIX ladZY)
+        totalUnlad  = Compose unladZY (Compose unladIX finalUnlad)
 
     in (totalLadder, totalUnlad, finalRoot)
 

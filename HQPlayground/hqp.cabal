@@ -38,7 +38,6 @@ library core
       HQP.PrettyPrint.PrettyOp,
     build-depends:    
         base,
-        hmatrix,
         random,
         mtl
     hs-source-dirs:   src
@@ -48,7 +47,6 @@ common exe-common
     hs-source-dirs:   exe
     build-depends:
         base,
-        hmatrix,
         random,
         hqp:core 
 
