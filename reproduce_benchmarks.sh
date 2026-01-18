@@ -45,5 +45,5 @@ python3 plot_benchmark.py
 # 5. Finish
 echo "=========================================="
 echo "🎉 SUCCESS!"
-echo "   Plots are available in: HQPlayground/exe/benchmark_results/"
+echo "   Plots are available in: /benchmark_results/"
 echo "=========================================="
