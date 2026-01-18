@@ -144,13 +144,16 @@ Each function prints intermediate results and circuit visualizations, making the
   Decomposes arbitrary Pauli rotations into Clifford–CNOT–Z-rotation gadgets using a naive strategy and implements a baseline decompose-and-push optimization strategy.
 
 - **HQP.Opt.CliffordExtraction**  
-  Implements the Naive Extraction strategy.
+  Implements the commuting of the Clifford gates with the rotations. 
 
 - **HQP.QOp.Symplectic**  
-  Provides a tableau-based symplectic representation for efficient Clifford conjugation of Pauli operators.
+  Provides a tableau-based symplectic representation for efficient Clifford conjugation of Pauli operators and the rules for weakly commutation.
 
 ## 📚 References
 
-Ji Liu, Alvin Gonzales, Benchen Huang,  
-Zain Hamid Saleem, and Paul Hovland.  
-**QuCLEAR: Clifford extraction and absorption for quantum circuit optimization.**
+Li Liu et al.  
+**QuCLEAR: Clifford Extraction and Absorption for Quantum Circuit Optimization.**  
+Feb. 22, 2025.  
+doi: 10.48550/arXiv.2408.13316.  
+arXiv: 2408.13316 [quant-ph].  
+url: http://arxiv.org/abs/2408.13316
