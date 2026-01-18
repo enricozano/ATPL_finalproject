@@ -140,6 +140,9 @@ Each function prints intermediate results and circuit visualizations, making the
 - **HQP.Opt.SmartExtraction**  
   Implements QuCLEAR’s recursive CNOT-tree synthesis and look-ahead Pauli optimization.
 
+  - **HQP.Opt.GateDecomposition**  
+  Decomposes arbitrary Pauli rotations into Clifford–CNOT–Z-rotation gadgets using a naive strategy and implements a baseline decompose-and-push optimization strategy.
+
 - **HQP.Opt.CliffordExtraction**  
   Implements the Naive Extraction strategy.
 
