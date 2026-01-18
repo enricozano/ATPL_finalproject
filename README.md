@@ -141,7 +141,7 @@ Each function prints intermediate results and circuit visualizations, making the
   Implements QuCLEAR’s recursive CNOT-tree synthesis and look-ahead Pauli optimization.
 
 - **HQP.Opt.CliffordExtraction**  
-  Commutes Clifford gates and extracts them to canonical circuit positions.
+  Implements the Naive Extraction strategy.
 
 - **HQP.QOp.Symplectic**  
   Provides a tableau-based symplectic representation for efficient Clifford conjugation of Pauli operators.
