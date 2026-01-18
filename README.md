@@ -145,3 +145,9 @@ Each function prints intermediate results and circuit visualizations, making the
 
 - **HQP.QOp.Symplectic**  
   Provides a tableau-based symplectic representation for efficient Clifford conjugation of Pauli operators.
+
+## 📚 References
+
+Ji Liu, Alvin Gonzales, Benchen Huang,  
+Zain Hamid Saleem, and Paul Hovland.  
+**QuCLEAR: Clifford extraction and absorption for quantum circuit optimization.**
